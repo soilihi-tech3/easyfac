@@ -32,6 +32,7 @@ export default function Factures() {
   const [filterAnnee, setFilterAnnee] = useState('');
   const [voyages, setVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editFacture, setEditFacture] = useState(null);
   const [viewFacture, setViewFacture] = useState(null);
@@ -52,7 +53,7 @@ export default function Factures() {
   }
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (isFirstLoad) setLoading(true);
     try {
       const [allFactures, allVoyages] = await Promise.all([getFactures(), getVoyages()]);
       let f = allFactures.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -91,11 +92,12 @@ export default function Factures() {
       }
       setFactures(f);
       setVoyages(allVoyages);
+      setIsFirstLoad(false);
     } catch (err) {
       toast('Erreur de chargement des factures', 'error');
     }
     setLoading(false);
-  }, [search, filterStatut, filterVoyage, filterPays, filterOverdue, filterMois, filterAnnee]);
+  }, [search, filterStatut, filterVoyage, filterPays, filterOverdue, filterMois, filterAnnee, isFirstLoad]);
 
   const startPayment = (f) => {
     setPaymentFacture(f);

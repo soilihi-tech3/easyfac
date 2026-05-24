@@ -12,6 +12,7 @@ export default function Voyages() {
   const [factures, setFactures] = useState([]);
   const [depenses, setDepenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
   const [filterMois, setFilterMois] = useState('');
@@ -33,7 +34,7 @@ export default function Voyages() {
   }
 
   const load = async () => {
-    setLoading(true);
+    if (isFirstLoad) setLoading(true);
     try {
       const [allVoyages, allFactures, allDepenses] = await Promise.all([
         getVoyages(),
@@ -43,6 +44,7 @@ export default function Voyages() {
       setVoyages(allVoyages.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
       setFactures(allFactures);
       setDepenses(allDepenses);
+      setIsFirstLoad(false);
     } catch (err) {
       toast('Erreur de chargement', 'error');
     }

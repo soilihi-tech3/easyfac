@@ -16,6 +16,7 @@ export default function Clients() {
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { toast, devise, refresh } = useApp();
 
   const isAdmin = user?.role === 'admin';
@@ -29,18 +30,19 @@ export default function Clients() {
   }
 
   const load = async () => {
-    setLoading(true);
+    if (isFirstLoad) setLoading(true);
     try {
       const [allClients, allFactures] = await Promise.all([getClients(), getFactures()]);
       setClients(allClients);
       setFactures(allFactures);
+      setIsFirstLoad(false);
     } catch (err) {
       toast('Erreur de chargement des clients', 'error');
     }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [refresh]);
+  useEffect(() => { load(); }, [refresh, isFirstLoad]);
 
   const openAdd  = () => { setForm(emptyForm); setEditClient(null); setShowModal(true); };
   const openEdit = (c) => { setForm({ nom: c.nom, prenom: c.prenom, telephone: c.telephone, adresse: c.adresse }); setEditClient(c); setShowModal(true); };

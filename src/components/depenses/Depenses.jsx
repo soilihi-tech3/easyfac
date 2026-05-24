@@ -11,6 +11,7 @@ export default function Depenses() {
   const [depenses, setDepenses] = useState([]);
   const [voyages, setVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [filterVoyage, setFilterVoyage] = useState('');
   const [search, setSearch] = useState('');
   const [filterMois, setFilterMois] = useState('');
@@ -25,7 +26,7 @@ export default function Depenses() {
   const [defaultVoyageId, setDefaultVoyageId] = useState('');
 
   const load = async () => {
-    setLoading(true);
+    if (isFirstLoad) setLoading(true);
     try {
       const [allDepenses, allVoyages, params] = await Promise.all([
         getDepenses(), 
@@ -47,6 +48,7 @@ export default function Depenses() {
       setDepenses(d);
       setVoyages(allVoyages);
       setDefaultVoyageId(params.config?.voyageDefautId || '');
+      setIsFirstLoad(false);
     } catch (err) {
       toast('Erreur de chargement', 'error');
     }

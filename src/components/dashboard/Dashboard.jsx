@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [recentFactures, setRecentFactures] = useState([]);
   const [topClients, setTopClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true);
+      if (isFirstLoad) setLoading(true);
       try {
         const [s, allFac, allDeps, clients] = await Promise.all([
           getStats(),
@@ -120,13 +121,14 @@ export default function Dashboard() {
           })).sort((a, b) => b.nbFactures - a.nbFactures).slice(0, 5);
           setTopClients(clientCounts);
         }
+        setIsFirstLoad(false);
       } catch (err) {
         console.error(err);
       }
       setLoading(false);
     };
     load();
-  }, [refresh]);
+  }, [refresh, isFirstLoad]);
 
   if (loading || !stats) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
 

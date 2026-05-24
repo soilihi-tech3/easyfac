@@ -9,7 +9,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'easyfac-super-secret-key-2026';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Create DB connection pool
 const pool = mysql.createPool({
@@ -131,13 +132,14 @@ app.post('/api/users', async (req, res) => {
   try {
     const id = uuidv4();
     const { nom, prenom, email, password, role, voyageId, permissions } = req.body;
+    const cleanVoyageId = (voyageId === '' || voyageId === undefined || voyageId === 'null') ? null : voyageId;
     const hash = await bcrypt.hash(password, 10);
     const permString = permissions ? JSON.stringify(permissions) : null;
     await pool.query(
       'INSERT INTO users (id, nom, prenom, email, password, role, voyageId, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, nom, prenom, email, hash, role || 'employee', voyageId || null, permString]
+      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString]
     );
-    res.json({ id, nom, prenom, email, role, voyageId, permissions });
+    res.json({ id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -147,20 +149,21 @@ app.put('/api/users/:id', async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
     const { nom, prenom, email, password, role, voyageId, permissions } = req.body;
+    const cleanVoyageId = (voyageId === '' || voyageId === undefined || voyageId === 'null') ? null : voyageId;
     const permString = permissions ? JSON.stringify(permissions) : null;
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await pool.query(
         'UPDATE users SET nom=?, prenom=?, email=?, password=?, role=?, voyageId=?, permissions=? WHERE id=?',
-        [nom, prenom, email, hash, role, voyageId || null, permString, req.params.id]
+        [nom, prenom, email, hash, role, cleanVoyageId, permString, req.params.id]
       );
     } else {
       await pool.query(
         'UPDATE users SET nom=?, prenom=?, email=?, role=?, voyageId=?, permissions=? WHERE id=?',
-        [nom, prenom, email, role, voyageId || null, permString, req.params.id]
+        [nom, prenom, email, role, cleanVoyageId, permString, req.params.id]
       );
     }
-    res.json({ id: req.params.id, nom, prenom, email, role, voyageId, permissions });
+    res.json({ id: req.params.id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

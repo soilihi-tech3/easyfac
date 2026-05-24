@@ -99,19 +99,6 @@ export default function ReceiptModal({ facture, onClose, devise }) {
   };
 
   const handleExportPDF = () => {
-    setShowExportGuide(true);
-  };
-
-  const startExportProcess = () => {
-    setShowExportGuide(false);
-    
-    // 1. Open client WhatsApp conversation synchronously first (bypasses browser popup blocker)
-    let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
-    phone = phone.replace(/\D/g, '');
-    const text = `Bonjour, voici le reçu au format PDF pour votre facture ${facture.numero}.`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-    
-    // 2. Open print dialog right after synchronously
     handlePrint();
   };
 
@@ -124,7 +111,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       overflowY: 'auto',
       overflowX: 'hidden',
       WebkitOverflowScrolling: 'touch',
-      padding: '40px 20px',
+      padding: '20px 10px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center'
@@ -229,6 +216,64 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             margin: 1.5cm;
           }
         }
+
+        @media screen and (max-width: 600px) {
+          #receipt-print-area {
+            font-size: 11px !important;
+          }
+          #receipt-print-area > div {
+            padding: 16px 12px !important;
+          }
+          .receipt-header-row {
+            flex-direction: column !important;
+            gap: 16px !important;
+            margin-bottom: 16px !important;
+          }
+          .agencies-wrap {
+            text-align: left !important;
+            width: 100% !important;
+          }
+          .agencies-inner-flex {
+            flex-direction: column !important;
+            gap: 12px !important;
+            justify-content: flex-start !important;
+          }
+          .agency-block {
+            text-align: left !important;
+          }
+          .receipt-info-row-3 {
+            grid-template-columns: 1fr !important;
+          }
+          .receipt-info-row-3 > div {
+            border-right: none !important;
+            border-bottom: 2px solid #000 !important;
+          }
+          .receipt-info-row-3 > div:last-child {
+            border-bottom: none !important;
+          }
+          .receipt-info-row-2 {
+            grid-template-columns: 1fr !important;
+          }
+          .receipt-info-row-2 > div {
+            border-right: none !important;
+            border-bottom: 2px solid #000 !important;
+          }
+          .receipt-info-row-2 > div:last-child {
+            border-bottom: none !important;
+          }
+          #receipt-print-area table th,
+          #receipt-print-area table td {
+            padding: 6px 8px !important;
+            font-size: 11px !important;
+          }
+          .receipt-actions-row {
+            gap: 4px !important;
+          }
+          .receipt-actions-row button {
+            padding: 8px 10px !important;
+            font-size: 11px !important;
+          }
+        }
       `}} />
       {/* Inner centering wrapper */}
       <div style={{
@@ -278,23 +323,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          {(facture.montantTotal - facture.montantPaye > 0) && (
-            <button
-              className="btn btn-sm"
-              onClick={handleReminderWhatsApp}
-              style={{ gap: 6, background: 'var(--danger)', color: '#fff', border: 'none' }}
-            >
-              <Bell size={14} /> Rappel
-            </button>
-          )}
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={handleWhatsApp}
-            style={{ gap: 6 }}
-          >
-            <MessageCircle size={14} /> WhatsApp
-          </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }} className="receipt-actions-row">
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleExportPDF}
@@ -351,21 +380,21 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       >
         <div style={{ padding: '30px 40px' }}>
           {/* Top Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div className="receipt-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div style={{ flex: 1 }}>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>
                 {entreprise.nom || 'EASYFAC'}
               </h1>
             </div>
-            <div style={{ flex: 1, fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
-              <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end' }}>
-                <div style={{ textAlign: 'left' }}>
+            <div className="agencies-wrap" style={{ flex: 1, fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
+              <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end' }} className="agencies-inner-flex">
+                <div style={{ textAlign: 'left' }} className="agency-block">
                   <strong style={{ color: accentColor }}>AGENCE SÉNÉGAL</strong><br />
                   {entreprise.adresse && <>{entreprise.adresse}<br /></>}
                   {entreprise.telephone1 && <>📞 {entreprise.telephone1}{entreprise.telephone2 ? ` / ${entreprise.telephone2}` : ''}</>}
                 </div>
                 {(entreprise.lieuComores || entreprise.telComores1) && (
-                  <div style={{ textAlign: 'left' }}>
+                  <div style={{ textAlign: 'left' }} className="agency-block">
                     <strong style={{ color: accentColor }}>AGENCE COMORES</strong><br />
                     {entreprise.lieuComores && <>{entreprise.lieuComores}<br /></>}
                     {entreprise.telComores1 && <>📞 {entreprise.telComores1}{entreprise.telComores2 ? ` / ${entreprise.telComores2}` : ''}</>}
@@ -398,7 +427,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             overflow: 'hidden'
           }}>
             {/* Row 1 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '2px solid #000' }}>
+            <div className="receipt-info-row-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '2px solid #000' }}>
               <div style={{ padding: '8px 12px', borderRight: '2px solid #000' }}>
                 <span style={{ fontSize: 10, fontWeight: 700 }}>N° FACTURE:</span>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#ef4444' }}>{facture.numero}</div>
@@ -413,7 +442,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
               </div>
             </div>
             {/* Row 2 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '2px solid #000' }}>
+            <div className="receipt-info-row-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '2px solid #000' }}>
               <div style={{ padding: '8px 12px', borderRight: '2px solid #000' }}>
                 <span style={{ fontSize: 10, fontWeight: 700 }}>EXPÉDITEUR:</span>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{facture.expediteur?.prenom} {facture.expediteur?.nom}</div>
@@ -553,108 +582,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           <div style={{ width: '60%', background: accentColor, marginLeft: -20, zIndex: -1 }}></div>
         </div>
       </div>
-          </div>
-
-      {showExportGuide && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(15, 23, 42, 0.9)',
-          backdropFilter: 'blur(16px)',
-          zIndex: 1100,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 20
-        }} onClick={() => setShowExportGuide(false)}>
-          <div style={{
-            background: 'var(--bg-elevated)',
-            border: '1px solid var(--border-strong)',
-            borderRadius: 24,
-            padding: '32px 24px',
-            maxWidth: 480,
-            width: '100%',
-            boxShadow: 'var(--shadow-2xl)',
-            textAlign: 'center',
-            display: 'flex', flexDirection: 'column', gap: 20
-          }} onClick={e => e.stopPropagation()}>
-            {/* Header Icon */}
-            <div style={{
-              width: 56, height: 56, borderRadius: 16,
-              background: 'rgba(168,85,247,0.15)', color: 'var(--purple)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto', fontSize: 24
-            }}>
-              <FileText size={28} />
-            </div>
-
-            {/* Title */}
-            <div>
-              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 20, margin: '0 0 8px 0', color: 'var(--text-strong)' }}>
-                Exportation PDF & WhatsApp
-              </h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-                Pour des raisons de sécurité, les navigateurs n'autorisent pas le transfert automatique de fichiers locaux vers WhatsApp.
-              </p>
-            </div>
-
-            {/* Steps */}
-            <div style={{
-              textAlign: 'left',
-              background: 'rgba(0,0,0,0.15)',
-              borderRadius: 16,
-              padding: '16px 20px',
-              display: 'flex', flexDirection: 'column', gap: 14,
-              border: '1px solid var(--border-subtle)'
-            }}>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: '50%',
-                  background: 'var(--brand)', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, flexShrink: 0
-                }}>1</div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--text-muted)' }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Enregistrez le PDF</strong>
-                  <div style={{ marginTop: 2 }}>
-                    La boîte de dialogue d'impression va s'ouvrir. Choisissez <span style={{color: 'var(--purple)', fontWeight: 600}}>"Enregistrer au format PDF"</span>.
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: '50%',
-                  background: 'var(--brand)', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 700, flexShrink: 0
-                }}>2</div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--text-muted)' }}>
-                  <strong style={{ color: 'var(--text-strong)' }}>Glissez-déposez dans WhatsApp</strong>
-                  <div style={{ marginTop: 2 }}>
-                    La discussion WhatsApp du client va s'ouvrir automatiquement. Faites glisser le fichier PDF sauvegardé dedans.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <button
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-                onClick={() => setShowExportGuide(false)}
-              >
-                Annuler
-              </button>
-              <button
-                className="btn btn-primary"
-                style={{ flex: 1.5, background: 'var(--purple)', border: 'none', color: '#fff' }}
-                onClick={startExportProcess}
-              >
-                Lancer l'exportation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    </div>
     </div>,
     document.body
   );

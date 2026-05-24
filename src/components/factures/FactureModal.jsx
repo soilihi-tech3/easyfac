@@ -346,25 +346,39 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
             <SectionHead Icon={Package} label="Articles & Transport" color="var(--warning)" />
             {errors.articles && <div className="alert alert-error" style={{ marginBottom: 12 }}>{errors.articles}</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 70px 110px 120px 36px', gap: 8, padding: '0 2px' }}>
+              <div className="article-header-grid">
                 {['Article', 'Qté', 'Prix unitaire', 'Total', ''].map((h, i) => (
                   <div key={i} style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</div>
                 ))}
               </div>
               {form.articles.map(a => (
-                <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '2fr 70px 110px 120px 36px', gap: 8, alignItems: 'center' }}>
-                  <input className="form-input" placeholder="Nom de l'article" value={a.nom} onChange={e => updateArticle(a.id, 'nom', e.target.value)} />
-                  <input className="form-input" type="number" min="1" value={a.quantite} onChange={e => updateArticle(a.id, 'quantite', e.target.value)} />
-                  <input className="form-input" type="number" min="0" value={a.prixUnitaire} onChange={e => updateArticle(a.id, 'prixUnitaire', e.target.value)} />
-                  <div style={{
-                    background: 'var(--brand-muted)', color: 'var(--brand)',
-                    padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, textAlign: 'right',
-                  }}>
-                    {formatCurrency(a.total, devise)}
+                <div key={a.id} className="article-grid">
+                  <div className="article-col-nom">
+                    <span className="mobile-only-label">Article</span>
+                    <input className="form-input" placeholder="Nom de l'article" value={a.nom} onChange={e => updateArticle(a.id, 'nom', e.target.value)} />
                   </div>
-                  <button className="btn-icon danger" onClick={() => removeArticle(a.id)}>
-                    <Trash2 size={13} />
-                  </button>
+                  <div className="article-col-qte">
+                    <span className="mobile-only-label">Qté</span>
+                    <input className="form-input" type="number" min="1" value={a.quantite} onChange={e => updateArticle(a.id, 'quantite', e.target.value)} />
+                  </div>
+                  <div className="article-col-pu">
+                    <span className="mobile-only-label">Prix unitaire</span>
+                    <input className="form-input" type="number" min="0" value={a.prixUnitaire} onChange={e => updateArticle(a.id, 'prixUnitaire', e.target.value)} />
+                  </div>
+                  <div className="article-col-total">
+                    <span className="mobile-only-label">Total</span>
+                    <div style={{
+                      background: 'var(--brand-muted)', color: 'var(--brand)',
+                      padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, textAlign: 'right',
+                    }}>
+                      {formatCurrency(a.total, devise)}
+                    </div>
+                  </div>
+                  <div className="article-col-action">
+                    <button className="btn-icon danger" onClick={() => removeArticle(a.id)}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               ))}
               <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={addArticle}>
@@ -374,7 +388,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
 
             {/* Transport / Fret */}
             <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, alignItems: 'end' }}>
+              <div className="transport-grid">
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label">Poids total du colis (kg)</label>
                   <input className="form-input" type="number" min="0" step="0.5" value={form.poidsTotal} onChange={e => updateFret('poidsTotal', e.target.value)} />
@@ -383,7 +397,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                   <label className="form-label">Prix au kg ({devise})</label>
                   <input className="form-input" disabled type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
                 </div>
-                <div style={{ textAlign: 'right' }}>
+                <div className="transport-total-col">
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Frais de transport</div>
                   <div style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--brand)' }}>
                     {formatCurrency(form.fraisFret, devise)}

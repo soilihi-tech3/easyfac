@@ -253,10 +253,17 @@
   align-items: center;
   padding: 0 24px;
   gap: 16px;
-  position: sticky;
+  position: fixed;
   top: 0;
+  right: 0;
+  left: var(--sidebar-w);
   z-index: 100;
   backdrop-filter: blur(12px);
+  transition: left 0.22s cubic-bezier(0.4,0,0.2,1);
+}
+
+.layout.collapsed .topbar {
+  left: var(--sidebar-collapsed);
 }
 
 @media (max-width: 1024px) {
@@ -334,6 +341,7 @@
   padding: 24px;
   width: 100%;
   min-width: 0;
+  margin-top: var(--topbar-h);
 }
 
 @media (max-width: 1024px) {
@@ -393,6 +401,7 @@
     padding: 16px;
   }
   .topbar {
+    left: 0 !important;
     padding: 0 16px;
   }
 }

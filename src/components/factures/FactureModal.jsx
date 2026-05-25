@@ -521,9 +521,9 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
 
         {!loading && (
           <div className="flex justify-end gap-3" style={{ marginTop: 28 }}>
-            <button className="btn btn-secondary" onClick={onClose}>Annuler</button>
-            <button className="btn btn-primary" onClick={handleSubmit}>
-              {facture ? 'Enregistrer les modifications' : 'Créer la facture'}
+            <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Annuler</button>
+            <button className="btn btn-primary" onClick={handleSubmit} disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Enregistrement en cours...' : (facture ? 'Enregistrer les modifications' : 'Créer la facture')}
             </button>
           </div>
         )}

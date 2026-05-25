@@ -29,6 +29,7 @@ export default function Parametres() {
   const [params, setParams] = useState(null);
   const [voyages, setVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const { toast, refreshData, toggleTheme, isDark } = useApp();
 
   useEffect(() => {
@@ -60,12 +61,15 @@ export default function Parametres() {
   };
 
   const handleSave = async () => {
+    setSaving(true);
     try {
       await updateParametres(params);
-      refreshData();
+      await refreshData();
       toast('Paramètres sauvegardés avec succès');
     } catch (err) {
       toast('Erreur lors de la sauvegarde', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -83,8 +87,8 @@ export default function Parametres() {
           <h1 className="page-title">Paramètres</h1>
           <p className="page-subtitle">Configuration de votre application</p>
         </div>
-        <button className="btn btn-primary" onClick={handleSave}>
-          <Save size={16} /> Sauvegarder
+        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
+          <Save size={16} /> {saving ? 'Sauvegarde...' : 'Sauvegarder'}
         </button>
       </div>
 

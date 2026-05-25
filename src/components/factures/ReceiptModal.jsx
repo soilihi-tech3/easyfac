@@ -145,11 +145,15 @@ export default function ReceiptModal({ facture, onClose, devise }) {
         }
 
         @media print {
-          /* Force page background to white */
+          /* Force page background to white and prevent overflow scroll */
           html, body {
             background: #ffffff !important;
             background-color: #ffffff !important;
             color-scheme: light !important;
+            height: 100% !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
 
           /* Hide everything under body except our modal */
@@ -170,6 +174,8 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             padding: 0 !important;
             margin: 0 !important;
             color-scheme: light !important;
+            height: 100% !important;
+            overflow: hidden !important;
           }
 
           /* Ensure wrapper does not flex or center, keeping normal flow */
@@ -179,6 +185,8 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             width: 100% !important;
             background: transparent !important;
             background-color: transparent !important;
+            height: 100% !important;
+            overflow: hidden !important;
           }
 
           /* Hide sticky action bar */
@@ -186,7 +194,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             display: none !important;
           }
 
-          /* Print area specific styles with color forcing */
+          /* Print area specific styles with color forcing and scaling down to guarantee exactly 1 page */
           #receipt-print-area {
             display: block !important;
             position: absolute !important;
@@ -198,10 +206,50 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             background-color: #ffffff !important;
             box-shadow: none !important;
             margin: 0 !important;
-            padding: 0 !important;
             color-scheme: light !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            
+            /* Strict single page limits */
+            height: 100% !important;
+            max-height: 100vh !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            
+            /* Apply general scaling zoom for standard layouts to comfortably fit more articles */
+            zoom: 0.82 !important; 
+          }
+
+          #receipt-print-area > div {
+            padding: 12px 20px !important; /* reduce excessive padding */
+          }
+
+          /* Tighter spacings to shrink height dynamically for printing */
+          #receipt-print-area h1 {
+            font-size: 22px !important;
+          }
+          #receipt-print-area .receipt-header-row {
+            margin-bottom: 8px !important;
+          }
+          #receipt-print-area .receipt-info-row-3,
+          #receipt-print-area .receipt-info-row-2 {
+            margin-bottom: 8px !important;
+          }
+          #receipt-print-area table {
+            margin-bottom: 8px !important;
+          }
+          #receipt-print-area th, 
+          #receipt-print-area td {
+            padding: 4px 6px !important;
+            font-size: 10.5px !important;
+          }
+          #receipt-print-area .info-box {
+            margin-bottom: 8px !important;
+          }
+          #receipt-print-area table tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
           }
 
           /* Let all inner elements print exactly as designed in the app */
@@ -209,11 +257,13 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             color-scheme: light !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            page-break-inside: avoid !important;
           }
 
           /* Clean up page margins */
           @page {
-            margin: 1.5cm;
+            margin: 0.8cm !important;
+            size: auto;
           }
         }
 

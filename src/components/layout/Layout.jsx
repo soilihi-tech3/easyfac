@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
-  Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield
+  Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
+  Bell
 } from 'lucide-react';
+import { getFactures, getDepenses, formatCurrency, formatDate } from '../../data/store';
+import ReceiptModal from '../factures/ReceiptModal';
 import './Layout.css';
 
 const ALL_NAV_ITEMS = [
@@ -25,12 +28,146 @@ const SETTINGS_ITEMS = [
 export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { nomEntreprise, toggleTheme, isDark } = useApp();
+  const { nomEntreprise, toggleTheme, isDark, refresh, devise } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isAdmin = user?.role === 'admin';
   const isEmployee = user?.role === 'employee';
+
+  // 🔔 NOTIFICATIONS SYSTEM FOR ADMIN
+  const [notifications, setNotifications] = useState([]);
+  const [readNotifications, setReadNotifications] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('read_notifications') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [activeReceiptFacture, setActiveReceiptFacture] = useState(null);
+  const dropdownRef = useRef(null);
+
+  // Close notifications dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowNotifDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  // Fetch and compile unread notifications in real-time
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+
+    const fetchNotifs = async () => {
+      try {
+        const [allFactures, allDepenses] = await Promise.all([
+          getFactures(),
+          getDepenses()
+        ]);
+
+        const list = [];
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        // 1. Invoices exceeding payment deadline (Échéance dépassée)
+        allFactures.forEach(f => {
+          if (f.statut !== 'paye' && f.dateLimite) {
+            const limitDate = new Date(f.dateLimite);
+            limitDate.setHours(0,0,0,0);
+            if (limitDate < today) {
+              list.push({
+                id: `late-${f.id}`,
+                type: 'late_invoice',
+                title: `Échéance dépassée`,
+                text: `${f.expediteur?.prenom || ''} ${f.expediteur?.nom || ''} doit encore ${formatCurrency(f.montantTotal - f.montantPaye, devise)} sur la facture ${f.numero}. Échéance : ${formatDate(f.dateLimite)}`,
+                item: f,
+                action: 'receipt',
+                createdAt: new Date(f.dateLimite)
+              });
+            }
+          }
+        });
+
+        // 2. Invoices created by employees (Paiement employé réalisé)
+        allFactures.forEach(f => {
+          if (f.creePar && f.creePar.role === 'employee') {
+            const createdDate = new Date(f.createdAt || Date.now());
+            const diffDays = Math.floor((today - createdDate) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 7) {
+              list.push({
+                id: `payment-${f.id}`,
+                type: 'employee_payment',
+                title: `Paiement enregistré`,
+                text: `L'employé ${f.creePar.prenom} ${f.creePar.nom} a créé la facture ${f.numero} de ${formatCurrency(f.montantTotal, devise)} pour ${f.expediteur?.prenom} ${f.expediteur?.nom}.`,
+                item: f,
+                action: 'receipt',
+                createdAt: createdDate
+              });
+            }
+          }
+        });
+
+        // 3. Expenses created by employees (Dépense de l'employé)
+        allDepenses.forEach(d => {
+          if (d.creePar && d.creePar.role === 'employee') {
+            const createdDate = new Date(d.createdAt || Date.now());
+            const diffDays = Math.floor((today - createdDate) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 7) {
+              list.push({
+                id: `expense-${d.id}`,
+                type: 'employee_expense',
+                title: `Dépense déclarée`,
+                text: `L'employé ${d.creePar.prenom} ${d.creePar.nom} a enregistré une dépense de ${formatCurrency(d.montant * d.quantite, devise)} : ${d.nom}.`,
+                item: d,
+                action: 'expense_route',
+                createdAt: createdDate
+              });
+            }
+          }
+        });
+
+        // Sort notifications by date (newest first)
+        list.sort((a, b) => b.createdAt - a.createdAt);
+
+        setNotifications(list);
+      } catch (err) {
+        console.error("Error generating notifications:", err);
+      }
+    };
+
+    fetchNotifs();
+  }, [refresh, user, devise]);
+
+  const unreadNotifications = notifications.filter(n => !readNotifications.includes(n.id));
+
+  const handleNotificationClick = (notif) => {
+    // 1. Mark as read immediately
+    const updatedRead = [...readNotifications, notif.id];
+    setReadNotifications(updatedRead);
+    localStorage.setItem('read_notifications', JSON.stringify(updatedRead));
+
+    // 2. Perform action
+    if (notif.action === 'receipt') {
+      setActiveReceiptFacture(notif.item);
+    } else if (notif.action === 'expense_route') {
+      navigate('/depenses');
+    }
+    
+    setShowNotifDropdown(false);
+  };
+
+  const handleMarkAllAsRead = () => {
+    const allIds = notifications.map(n => n.id);
+    setReadNotifications(allIds);
+    localStorage.setItem('read_notifications', JSON.stringify(allIds));
+    setShowNotifDropdown(false);
+  };
 
   let permissions = {};
   if (user?.permissions) {
@@ -181,7 +318,146 @@ export default function Layout({ children }) {
             <span className="topbar-page" style={{ fontSize: '17px', fontWeight: '800', color: 'var(--text-main)' }}>{currentLabel}</span>
           </div>
 
-          <div className="topbar-right">
+          <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
+            {/* 🔔 ADMIN NOTIFICATIONS BELL BUTTON */}
+            {isAdmin && (
+              <div style={{ position: 'relative' }} ref={dropdownRef}>
+                <button
+                  onClick={() => setShowNotifDropdown(o => !o)}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    color: unreadNotifications.length > 0 ? 'var(--warning)' : 'var(--text-secondary)',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                  title="Notifications"
+                >
+                  <Bell size={18} strokeWidth={2} />
+                  {unreadNotifications.length > 0 && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      background: 'var(--danger)',
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 0 6px var(--danger)',
+                      border: '2px solid var(--bg-surface)'
+                    }}>
+                      {unreadNotifications.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown Panel */}
+                {showNotifDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    width: '320px',
+                    maxHeight: '400px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: '16px',
+                    boxShadow: 'var(--shadow-xl)',
+                    zIndex: 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                  }} className="notif-dropdown">
+                    {/* Header */}
+                    <div style={{
+                      padding: '12px 16px',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: 'var(--bg-elevated)'
+                    }}>
+                      <span style={{ fontWeight: '700', fontSize: '13.5px' }}>Notifications ({unreadNotifications.length})</span>
+                      {unreadNotifications.length > 0 && (
+                        <button
+                          onClick={handleMarkAllAsRead}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--brand)',
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Tout lire
+                        </button>
+                      )}
+                    </div>
+
+                    {/* List */}
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                      {unreadNotifications.length > 0 ? (
+                        unreadNotifications.map(n => (
+                          <div
+                            key={n.id}
+                            onClick={() => handleNotificationClick(n)}
+                            style={{
+                              padding: '12px 16px',
+                              borderBottom: '1px solid var(--border-subtle)',
+                              cursor: 'pointer',
+                              transition: 'background 0.15s',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '4px'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{
+                                fontWeight: '700',
+                                fontSize: '12.5px',
+                                color: n.type === 'late_invoice' ? 'var(--danger)' : 'var(--success)'
+                              }}>
+                                {n.title}
+                              </span>
+                              <span style={{ fontSize: '9.5px', color: 'var(--text-muted)' }}>
+                                {new Date(n.createdAt).toLocaleDateString('fr-FR')}
+                              </span>
+                            </div>
+                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
+                              {n.text}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: '24px', marginBottom: '8px' }}>📣</div>
+                          <span style={{ fontSize: '13px', fontWeight: '500' }}>Aucune notification en attente</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="status-pill">
               <span className="status-dot" />
               En ligne
@@ -194,6 +470,15 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* ─── Receipt Modal overlay from Notification Click ─── */}
+      {activeReceiptFacture && (
+        <ReceiptModal
+          facture={activeReceiptFacture}
+          onClose={() => setActiveReceiptFacture(null)}
+          devise={devise}
+        />
+      )}
     </div>
   );
 }

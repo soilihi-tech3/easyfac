@@ -55,32 +55,38 @@ export default function Login() {
 
   return (
     <div className="login-container">
+      {/* Premium organic liquid blobs behind the card */}
+      <div className="login-blobs-container">
+        <div className="login-blob blob-blue"></div>
+        <div className="login-blob blob-teal"></div>
+        <div className="login-blob blob-gold"></div>
+      </div>
+
       <div className="login-card">
-        {/* Brand Logo centered */}
+        {/* Brand Logo inside a teal/cyan circle ring */}
         <div className="login-logo-container">
-          <img src="/logo.jpg" alt="easyfac" className="login-logo-img" />
+          <div className="login-brand-ring">
+            <img src="/logo.jpg" alt="easyfac" className="login-logo-img" />
+          </div>
         </div>
 
-        {/* Header Texts */}
-        <div className="login-header-group">
-          <h2 className="login-welcome-title">Bon retour !</h2>
-          <p className="login-welcome-subtitle">Connectez-vous à votre compte pour continuer.</p>
-        </div>
+        {/* Clean Header Title */}
+        <h2 className="login-welcome-title">Bienvenue</h2>
+        <p className="login-welcome-subtitle">Connectez-vous à votre compte pour continuer</p>
 
         {error && (
-          <div className="login-error-alert">
+          <div className={`login-error-alert ${error.includes('administrateur') ? 'warning' : ''}`}>
             <AlertCircle size={17} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          {/* Email field */}
+        <form onSubmit={handleSubmit} className="login-form">
+          {/* Email field with baseline underline */}
           <div className="login-form-group">
-            <label className="login-input-label">Adresse Email</label>
             <div className="login-input-wrapper">
               <span className="login-input-icon">
-                <Mail size={16} />
+                <Mail size={18} />
               </span>
               <input
                 type="email"
@@ -88,30 +94,17 @@ export default function Login() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                placeholder="you@example.com"
+                placeholder="Email Address"
                 autoComplete="email"
               />
             </div>
           </div>
 
-          {/* Password field with Label and Forgot Password link next to it */}
+          {/* Password field with baseline underline */}
           <div className="login-form-group">
-            <div className="login-label-row">
-              <label className="login-input-label">Mot de passe</label>
-              <a
-                href="#forgot"
-                className="login-forgot-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setError('Veuillez contacter votre administrateur pour réinitialiser votre mot de passe.');
-                }}
-              >
-                Mot de passe oublié ?
-              </a>
-            </div>
             <div className="login-input-wrapper">
               <span className="login-input-icon">
-                <Lock size={16} />
+                <Lock size={18} />
               </span>
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -119,7 +112,7 @@ export default function Login() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                placeholder="Mot de passe"
+                placeholder="Password"
                 autoComplete="current-password"
               />
               <button
@@ -132,60 +125,29 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Remember me Checkbox */}
-          <div className="login-extra-row">
-            <label className="login-remember-wrap">
-              <input
-                type="checkbox"
-                className="login-checkbox"
-                checked={rememberMe}
-                onChange={e => setRememberMe(e.target.checked)}
-              />
-              <span className="login-remember-text">Se souvenir de moi</span>
-            </label>
-          </div>
-
-          {/* Submit button */}
+          {/* Submit button - rounded vibrant blue */}
           <button
             type="submit"
             className="login-submit-btn"
             disabled={loading}
           >
             {loading ? 'Connexion en cours...' : 'Se connecter'}
-            {!loading && <ArrowRight size={16} />}
           </button>
         </form>
 
-        <div className="login-divider-container">
-          <div className="login-divider-line" />
-          <span className="login-divider-text">OU</span>
-          <div className="login-divider-line" />
-        </div>
-
-        {/* Demo Option */}
-        <button
-          type="button"
-          className="login-alternative-btn"
-          onClick={handleDemoLogin}
-          disabled={loading}
-        >
-          Se connecter avec le compte Démo
-        </button>
-
-        {/* Signup / Contact prompt */}
-        <p className="login-signup-prompt">
-          Pas encore de compte ?
+        {/* Minimal Centered Forgot Password Link */}
+        <div className="login-forgot-wrapper">
           <a
-            href="#admin"
-            className="login-signup-link"
+            href="#forgot"
+            className="login-forgot-link-centered"
             onClick={(e) => {
               e.preventDefault();
-              setError("Les comptes d'accès sont gérés par votre administrateur.");
+              setError('Pour des raisons de sécurité, veuillez contacter votre administrateur pour réinitialiser votre mot de passe.');
             }}
           >
-            Contacter l'administrateur
+            Forgot password?
           </a>
-        </p>
+        </div>
       </div>
     </div>
   );

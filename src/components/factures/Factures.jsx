@@ -40,7 +40,8 @@ export default function Factures() {
   const [paymentFacture, setPaymentFacture] = useState(null);
   const [newRemaining, setNewRemaining] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const { toast, devise, prixKg, refresh, entreprise } = useApp();
+  const { toast, devise, prixKg, refresh, entreprise, params } = useApp();
+  const config = params?.config || {};
 
   const isAdmin = user?.role === 'admin';
   let permissions = {};
@@ -212,6 +213,10 @@ export default function Factures() {
     const reste = total - paye;
     const dateStr = facture.dateLimite ? formatDate(facture.dateLimite) : "immédiatement";
     
+    const customCordial = config.rappelCordial !== undefined && config.rappelCordial !== ''
+      ? config.rappelCordial
+      : "Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.\nNous restons à votre entière disposition.\n\nCordialement,";
+
     const lines = [
       `*Rappel de paiement — Facture ${facture.numero}*`,
       `Bonjour ${facture.expediteur?.prenom || ''} ${facture.expediteur?.nom || ''},`,
@@ -222,10 +227,8 @@ export default function Factures() {
       `*Reste à Payer :* *${formatCurrency(reste, devise)}*`,
       `*Date d'échéance :* *${dateStr}*`,
       ``,
-      `Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.`,
-      `Nous restons à votre entière disposition.`,
+      customCordial,
       ``,
-      `Cordialement,`,
       `*${entreprise?.nom || 'EASYFAC'}*`
     ].join('\n');
     

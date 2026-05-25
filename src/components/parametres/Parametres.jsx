@@ -4,7 +4,7 @@ import { useApp } from '../../context/AppContext';
 import {
   Save, Building2, Image, Settings2, FileText as FileIcon,
   Palette, AlertTriangle, Trash2, Sun, Moon, Upload,
-  CheckCircle
+  CheckCircle, MessageCircle
 } from 'lucide-react';
 
 const SectionCard = ({ Icon, title, iconColor = 'var(--brand)', children }) => (
@@ -343,6 +343,24 @@ export default function Parametres() {
                 Lorsqu'un voyage par défaut est choisi, il sera pré-sélectionné et verrouillé pour la création de factures et de dépenses.
               </span>
             </div>
+          </div>
+        </SectionCard>
+
+        {/* WhatsApp & Rappels */}
+        <SectionCard Icon={MessageCircle} title="WhatsApp & Rappels" iconColor="#25d366">
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            <label className="form-label">Message de fin / Formule de politesse (Rappel WhatsApp)</label>
+            <textarea
+              className="form-input"
+              rows={4}
+              value={params.config?.rappelCordial || ''}
+              onChange={e => updateConf('rappelCordial', e.target.value)}
+              placeholder="Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.&#10;Nous restons à votre entière disposition.&#10;&#10;Cordialement,"
+              style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '10px 12px', lineHeight: 1.5 }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+              Personnalisez la formule de politesse envoyée en bas de votre rappel WhatsApp automatique. Les détails de la facture (numéro, nom, montant total, déjà payé, reste à payer, échéance) restent insérés au-dessus automatiquement.
+            </span>
           </div>
         </SectionCard>
 

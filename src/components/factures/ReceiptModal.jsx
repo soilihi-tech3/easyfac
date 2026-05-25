@@ -479,13 +479,14 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           {/* Top Header */}
           <div className="receipt-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div style={{ flex: 1 }}>
-              {entreprise.logo ? (
-                <img src={entreprise.logo} alt={entreprise.nom || 'Logo'} style={{ maxHeight: 55, maxWidth: 200, objectFit: 'contain' }} />
-              ) : (
-                <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                {entreprise.logo && (
+                  <img src={entreprise.logo} alt="Logo" style={{ maxHeight: 50, maxWidth: 120, objectFit: 'contain' }} />
+                )}
+                <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: entreprise.logo ? 22 : 28, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase', lineHeight: 1.1 }}>
                   {entreprise.nom || 'EASYFAC'}
                 </h1>
-              )}
+              </div>
             </div>
             <div className="agencies-wrap" style={{ flex: 1, fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
               <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end' }} className="agencies-inner-flex">

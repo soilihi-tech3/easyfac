@@ -151,6 +151,7 @@ export default function Parametres() {
                   border: '2px dashed var(--border-default)',
                   borderRadius: 12, padding: 20, textAlign: 'center',
                   cursor: 'pointer', transition: 'all var(--transition)',
+                  position: 'relative'
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--brand)'; e.currentTarget.style.background = 'var(--brand-muted)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = ''; }}
@@ -163,6 +164,44 @@ export default function Parametres() {
                   style={{ display: 'none' }}
                   onChange={e => handleLogoUpload(e, item.key)}
                 />
+                {params.entreprise?.[item.key] && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Supprimer cet élément (${item.label}) ?`)) {
+                        setParams(p => ({
+                          ...p,
+                          entreprise: {
+                            ...p.entreprise,
+                            [item.key]: ''
+                          }
+                        }));
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      width: 26,
+                      height: 26,
+                      borderRadius: 6,
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: 'var(--danger)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      zIndex: 10,
+                      transition: 'all 0.15s'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; e.currentTarget.style.color = 'var(--danger)'; }}
+                    title="Supprimer"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
                 {params.entreprise?.[item.key] ? (
                   <img
                     src={params.entreprise[item.key]}

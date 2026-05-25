@@ -1,6 +1,153 @@
-// EasyFac - Data Store (API based)
+// EasyFac - Data Store (API based with Offline Sync Engine)
 
 export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+
+// Network helper for unique ID generation
+const generateLocalId = () => `local-${Math.random().toString(36).substr(2, 9)}`;
+
+// Network checking
+export const isOnline = () => window.navigator.onLine;
+
+// ---- Local Cache Helpers ----
+const getLocalCache = (key) => {
+  try {
+    const data = localStorage.getItem(`ef_cache_${key}`);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const setLocalCache = (key, data) => {
+  try {
+    localStorage.setItem(`ef_cache_${key}`, JSON.stringify(data));
+  } catch (e) {
+    console.error(`Error caching ${key}:`, e);
+  }
+};
+
+// Queue operations
+const getSyncQueue = () => {
+  try {
+    return JSON.parse(localStorage.getItem('ef_sync_queue') || '[]');
+  } catch (e) {
+    return [];
+  }
+};
+
+const setSyncQueue = (queue) => {
+  localStorage.setItem('ef_sync_queue', JSON.stringify(queue));
+};
+
+const pushToSyncQueue = (action) => {
+  const queue = getSyncQueue();
+  queue.push(action);
+  setSyncQueue(queue);
+  console.log('Action pushed to sync queue:', action);
+  // Attempt sync if network is active
+  if (isOnline()) {
+    syncOfflineData();
+  }
+};
+
+// ---- Synchronizer Status state ----
+let isSyncing = false;
+
+export const syncOfflineData = async (onSyncProgress) => {
+  if (isSyncing) return;
+  if (!isOnline()) return;
+
+  const queue = getSyncQueue();
+  if (queue.length === 0) return;
+
+  isSyncing = true;
+  console.log(`Starting synchronization of ${queue.length} offline operations...`);
+
+  let currentQueue = [...queue];
+  const idMap = {}; // Maps temp local-xxx IDs to server IDs
+
+  try {
+    while (currentQueue.length > 0) {
+      const action = currentQueue[0];
+      const token = localStorage.getItem('token');
+
+      // Swap any temporary IDs in the body/url of the request
+      let updatedUrl = action.url;
+      let updatedBody = action.body ? { ...action.body } : null;
+
+      // Swap in URL (e.g. update/delete of local item)
+      Object.keys(idMap).forEach(tempId => {
+        if (updatedUrl.includes(tempId)) {
+          updatedUrl = updatedUrl.replace(tempId, idMap[tempId]);
+        }
+      });
+
+      // Swap in Body (e.g. invoice referring to expediteurId / destinataireId / voyageId)
+      if (updatedBody) {
+        Object.keys(updatedBody).forEach(key => {
+          const val = updatedBody[key];
+          if (typeof val === 'string' && idMap[val]) {
+            updatedBody[key] = idMap[val];
+          } else if (typeof val === 'object' && val !== null) {
+            // Nested object (like expediteur/destinataire subfields)
+            if (val.id && idMap[val.id]) {
+              val.id = idMap[val.id];
+            }
+          }
+        });
+      }
+
+      console.log(`Syncing action: ${action.method} ${updatedUrl}`, updatedBody);
+
+      // Perform fetch request
+      const options = {
+        method: action.method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      };
+      if (updatedBody) options.body = JSON.stringify(updatedBody);
+
+      const res = await fetch(`${API_URL}${updatedUrl}`, options);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erreur synchronisation API');
+      }
+
+      const result = await res.json();
+
+      // If we created a resource, map its temporary local ID to the new official server ID
+      if (action.tempId && result.id) {
+        idMap[action.tempId] = result.id;
+        console.log(`Mapped local ID ${action.tempId} -> Server ID ${result.id}`);
+      }
+
+      // Shift successful item from the queue
+      currentQueue.shift();
+      setSyncQueue(currentQueue);
+
+      if (onSyncProgress) onSyncProgress(currentQueue.length);
+    }
+
+    console.log('Synchronization completed successfully!');
+    
+    // Clear temp objects from cache and trigger clean server refresh
+    // We clean all local caches so they are fetched clean from server
+    localStorage.removeItem('ef_cache_clients');
+    localStorage.removeItem('ef_cache_voyages');
+    localStorage.removeItem('ef_cache_factures');
+    localStorage.removeItem('ef_cache_depenses');
+    localStorage.removeItem('ef_cache_epargnes');
+
+    // Notify layouts
+    window.dispatchEvent(new Event('offline-sync-completed'));
+  } catch (err) {
+    console.error('Offline synchronization failed:', err.message);
+  } finally {
+    isSyncing = false;
+  }
+};
 
 // ---- Helpers ----
 const apiCall = async (url, method = 'GET', body = null) => {
@@ -14,6 +161,11 @@ const apiCall = async (url, method = 'GET', body = null) => {
     } 
   };
   if (body) options.body = JSON.stringify(body);
+
+  if (!isOnline()) {
+    throw new Error('OFFLINE');
+  }
+
   const res = await fetch(`${API_URL}${url}`, options);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -22,32 +174,178 @@ const apiCall = async (url, method = 'GET', body = null) => {
   return res.json();
 };
 
+// Listen to browser network reconnection events automatically
+window.addEventListener('online', () => {
+  console.log('Internet connection restored. Triggering sync...');
+  syncOfflineData();
+});
+
 // ---- Seed Demo Data ----
 export const seedDemoData = async () => {
   if (localStorage.getItem('ef_seeded_api')) return;
-  // Optionnel : Appel à /api/seed si implémenté côté serveur
   localStorage.setItem('ef_seeded_api', '1');
 };
 
 // ---- CLIENTS ----
-export const getClients = () => apiCall('/api/clients');
-export const addClient = (data) => apiCall('/api/clients', 'POST', data);
-export const updateClient = (id, data) => apiCall(`/api/clients/${id}`, 'PUT', data);
-export const deleteClient = (id) => apiCall(`/api/clients/${id}`, 'DELETE');
+export const getClients = async () => {
+  try {
+    if (isOnline()) {
+      const data = await apiCall('/api/clients');
+      setLocalCache('clients', data);
+      return data;
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for clients...');
+  }
+  return getLocalCache('clients');
+};
+
+export const addClient = async (data) => {
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newClient = { id: tempId, ...data, createdAt: new Date().toISOString() };
+    const list = getLocalCache('clients');
+    list.push(newClient);
+    setLocalCache('clients', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/clients', body: data, tempId });
+    return newClient;
+  }
+
+  const res = await apiCall('/api/clients', 'POST', data);
+  const list = getLocalCache('clients');
+  list.push(res);
+  setLocalCache('clients', list);
+  return res;
+};
+
+export const updateClient = async (id, data) => {
+  if (!isOnline()) {
+    const list = getLocalCache('clients');
+    const idx = list.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...data };
+      setLocalCache('clients', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/clients/${id}`, body: data });
+    return { id, ...data };
+  }
+
+  const res = await apiCall(`/api/clients/${id}`, 'PUT', data);
+  const list = getLocalCache('clients');
+  const idx = list.findIndex(c => c.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('clients', list);
+  }
+  return res;
+};
+
+export const deleteClient = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('clients');
+    setLocalCache('clients', list.filter(c => c.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/clients/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/clients/${id}`, 'DELETE');
+  const list = getLocalCache('clients');
+  setLocalCache('clients', list.filter(c => c.id !== id));
+  return { success: true };
+};
 
 // ---- VOYAGES ----
-export const getVoyages = () => apiCall('/api/voyages');
-export const addVoyage = (data) => apiCall('/api/voyages', 'POST', data);
-export const updateVoyage = (id, data) => apiCall(`/api/voyages/${id}`, 'PUT', data);
-export const deleteVoyage = (id) => apiCall(`/api/voyages/${id}`, 'DELETE');
+export const getVoyages = async () => {
+  try {
+    if (isOnline()) {
+      const data = await apiCall('/api/voyages');
+      setLocalCache('voyages', data);
+      return data;
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for voyages...');
+  }
+  return getLocalCache('voyages');
+};
+
+export const addVoyage = async (data) => {
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newVoyage = { id: tempId, ...data, statut: 'en_cours', createdAt: new Date().toISOString() };
+    const list = getLocalCache('voyages');
+    list.push(newVoyage);
+    setLocalCache('voyages', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/voyages', body: data, tempId });
+    return newVoyage;
+  }
+
+  const res = await apiCall('/api/voyages', 'POST', data);
+  const list = getLocalCache('voyages');
+  list.push(res);
+  setLocalCache('voyages', list);
+  return res;
+};
+
+export const updateVoyage = async (id, data) => {
+  if (!isOnline()) {
+    const list = getLocalCache('voyages');
+    const idx = list.findIndex(v => v.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...data };
+      setLocalCache('voyages', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/voyages/${id}`, body: data });
+    return { id, ...data };
+  }
+
+  const res = await apiCall(`/api/voyages/${id}`, 'PUT', data);
+  const list = getLocalCache('voyages');
+  const idx = list.findIndex(v => v.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('voyages', list);
+  }
+  return res;
+};
+
+export const deleteVoyage = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('voyages');
+    setLocalCache('voyages', list.filter(v => v.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/voyages/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/voyages/${id}`, 'DELETE');
+  const list = getLocalCache('voyages');
+  setLocalCache('voyages', list.filter(v => v.id !== id));
+  return { success: true };
+};
 
 // ---- FACTURES ----
-export const getFactures = () => apiCall('/api/factures');
+export const getFactures = async () => {
+  try {
+    if (isOnline()) {
+      const data = await apiCall('/api/factures');
+      setLocalCache('factures', data);
+      return data;
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for factures...');
+  }
+  return getLocalCache('factures');
+};
 
 export const getNextNumero = async () => {
   const params = await getParametres();
   const format = params.config?.formatNumero || 'Fac-{YEAR2}-{NUM2}';
-  const count = (params.config?.compteur || 0) + 1;
+  
+  // Calculate count local size of factures to find next count
+  const factures = getLocalCache('factures');
+  const count = factures.length + (getSyncQueue().filter(q => q.url === '/api/factures').length) + 1;
+
   const year = new Date().getFullYear();
   const year2 = String(year).slice(-2);
   const num4 = String(count).padStart(4, '0');
@@ -75,46 +373,257 @@ const processFactureClients = async (data) => {
 
 export const addFacture = async (data) => {
   const processedData = await processFactureClients(data);
+
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newFacture = {
+      id: tempId,
+      ...processedData,
+      createdAt: new Date().toISOString(),
+      creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
+    };
+    
+    const list = getLocalCache('factures');
+    list.unshift(newFacture);
+    setLocalCache('factures', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/factures', body: processedData, tempId });
+    return newFacture;
+  }
+
   const res = await apiCall('/api/factures', 'POST', processedData);
+  const list = getLocalCache('factures');
+  list.unshift(res);
+  setLocalCache('factures', list);
   return res;
 };
 
 export const updateFacture = async (id, data) => {
   const processedData = await processFactureClients(data);
-  return apiCall(`/api/factures/${id}`, 'PUT', processedData);
+
+  if (!isOnline()) {
+    const list = getLocalCache('factures');
+    const idx = list.findIndex(f => f.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...processedData };
+      setLocalCache('factures', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/factures/${id}`, body: processedData });
+    return { id, ...processedData };
+  }
+
+  const res = await apiCall(`/api/factures/${id}`, 'PUT', processedData);
+  const list = getLocalCache('factures');
+  const idx = list.findIndex(f => f.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('factures', list);
+  }
+  return res;
 };
-export const deleteFacture = (id) => apiCall(`/api/factures/${id}`, 'DELETE');
+
+export const deleteFacture = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('factures');
+    setLocalCache('factures', list.filter(f => f.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/factures/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/factures/${id}`, 'DELETE');
+  const list = getLocalCache('factures');
+  setLocalCache('factures', list.filter(f => f.id !== id));
+  return { success: true };
+};
 
 // ---- DEPENSES ----
-export const getDepenses = () => apiCall('/api/depenses');
-export const addDepense = (data) => apiCall('/api/depenses', 'POST', data);
-export const updateDepense = (id, data) => apiCall(`/api/depenses/${id}`, 'PUT', data);
-export const deleteDepense = (id) => apiCall(`/api/depenses/${id}`, 'DELETE');
+export const getDepenses = async () => {
+  try {
+    if (isOnline()) {
+      const data = await apiCall('/api/depenses');
+      setLocalCache('depenses', data);
+      return data;
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for depenses...');
+  }
+  return getLocalCache('depenses');
+};
+
+export const addDepense = async (data) => {
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newDepense = {
+      id: tempId,
+      ...data,
+      createdAt: new Date().toISOString(),
+      creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
+    };
+    const list = getLocalCache('depenses');
+    list.unshift(newDepense);
+    setLocalCache('depenses', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/depenses', body: data, tempId });
+    return newDepense;
+  }
+
+  const res = await apiCall('/api/depenses', 'POST', data);
+  const list = getLocalCache('depenses');
+  list.unshift(res);
+  setLocalCache('depenses', list);
+  return res;
+};
+
+export const updateDepense = async (id, data) => {
+  if (!isOnline()) {
+    const list = getLocalCache('depenses');
+    const idx = list.findIndex(d => d.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...data };
+      setLocalCache('depenses', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/depenses/${id}`, body: data });
+    return { id, ...data };
+  }
+
+  const res = await apiCall(`/api/depenses/${id}`, 'PUT', data);
+  const list = getLocalCache('depenses');
+  const idx = list.findIndex(d => d.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('depenses', list);
+  }
+  return res;
+};
+
+export const deleteDepense = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('depenses');
+    setLocalCache('depenses', list.filter(d => d.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/depenses/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/depenses/${id}`, 'DELETE');
+  const list = getLocalCache('depenses');
+  setLocalCache('depenses', list.filter(d => d.id !== id));
+  return { success: true };
+};
+
+// ---- EPARGNES ----
+export const getEpargnes = async () => {
+  try {
+    if (isOnline()) {
+      const data = await apiCall('/api/epargnes');
+      setLocalCache('epargnes', data);
+      return data;
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for epargnes...');
+  }
+  return getLocalCache('epargnes');
+};
+
+export const addEpargne = async (data) => {
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newEpargne = {
+      id: tempId,
+      ...data,
+      createdAt: new Date().toISOString(),
+      creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
+    };
+    const list = getLocalCache('epargnes');
+    list.unshift(newEpargne);
+    setLocalCache('epargnes', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/epargnes', body: data, tempId });
+    return newEpargne;
+  }
+
+  const res = await apiCall('/api/epargnes', 'POST', data);
+  const list = getLocalCache('epargnes');
+  list.unshift(res);
+  setLocalCache('epargnes', list);
+  return res;
+};
+
+export const updateEpargne = async (id, data) => {
+  if (!isOnline()) {
+    const list = getLocalCache('epargnes');
+    const idx = list.findIndex(e => e.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...data };
+      setLocalCache('epargnes', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/epargnes/${id}`, body: data });
+    return { id, ...data };
+  }
+
+  const res = await apiCall(`/api/epargnes/${id}`, 'PUT', data);
+  const list = getLocalCache('epargnes');
+  const idx = list.findIndex(e => e.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('epargnes', list);
+  }
+  return res;
+};
+
+export const deleteEpargne = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('epargnes');
+    setLocalCache('epargnes', list.filter(e => e.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/epargnes/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/epargnes/${id}`, 'DELETE');
+  const list = getLocalCache('epargnes');
+  setLocalCache('epargnes', list.filter(e => e.id !== id));
+  return { success: true };
+};
 
 // ---- PARAMETRES ----
 export const getParametres = async () => {
   try {
-    const data = await apiCall('/api/parametres');
-    if (!data.config || Object.keys(data.config).length === 0) {
-      return {
-        entreprise: { nom: 'Mon Entreprise', telephone1: '', email: '', adresse: '', lieuComores: '', telComores1: '', telComores2: '' },
-        config: { prixKg: 6000, devise: 'FCFA', couleurPrimaire: '#6366f1', modeSombre: true, formatNumero: 'Fac-{YEAR2}-{NUM2}', modeleFacture: 'moderne', compteur: 0 },
-      };
+    if (isOnline()) {
+      const data = await apiCall('/api/parametres');
+      if (data.config && Object.keys(data.config).length > 0) {
+        localStorage.setItem('ef_cache_parametres', JSON.stringify(data));
+        return data;
+      }
     }
-    return data;
   } catch (err) {
-    return { entreprise: {}, config: {} };
+    console.log('Falling back to local cache for parametres...');
   }
+
+  try {
+    const data = localStorage.getItem('ef_cache_parametres');
+    if (data) return JSON.parse(data);
+  } catch (e) {}
+
+  return {
+    entreprise: { nom: 'Mon Entreprise', telephone1: '', email: '', adresse: '', lieuComores: '', telComores1: '', telComores2: '' },
+    config: { prixKg: 6000, devise: 'FCFA', couleurPrimaire: '#6366f1', modeSombre: true, formatNumero: 'Fac-{YEAR2}-{NUM2}', modeleFacture: 'moderne', compteur: 0 },
+  };
 };
 
 export const updateParametres = async (data) => {
+  if (!isOnline()) {
+    localStorage.setItem('ef_cache_parametres', JSON.stringify(data));
+    pushToSyncQueue({ method: 'PUT', url: '/api/parametres', body: data });
+    return data;
+  }
+
   const current = await getParametres();
   const merged = { ...current, ...data };
-  return apiCall('/api/parametres', 'PUT', merged);
+  const res = await apiCall('/api/parametres', 'PUT', merged);
+  localStorage.setItem('ef_cache_parametres', JSON.stringify(merged));
+  return res;
 };
 
 // ---- STATISTIQUES ----
-// Local computation using the data from API
 export const getStats = async () => {
   const [factures, depenses, clients] = await Promise.all([
     getFactures(), getDepenses(), getClients()

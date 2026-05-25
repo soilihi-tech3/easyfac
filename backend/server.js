@@ -531,6 +531,67 @@ app.delete('/api/factures/:id', async (req, res) => {
   }
 });
 
+// --- EPARGNES (SAVINGS) ---
+app.get('/api/epargnes', async (req, res) => {
+  try {
+    let query = 'SELECT * FROM epargnes ORDER BY createdAt DESC';
+    let params = [];
+    if (req.user.role === 'employee' && req.user.voyageId) {
+      query = 'SELECT * FROM epargnes WHERE voyageId = ? ORDER BY createdAt DESC';
+      params = [req.user.voyageId];
+    }
+    const [rows] = await pool.query(query, params);
+    
+    // Conjoin the user details
+    const [users] = await pool.query('SELECT id, nom, prenom, role FROM users');
+    const userMap = users.reduce((m, u) => { m[u.id] = u; return m; }, {});
+    const enriched = rows.map(r => ({
+      ...r,
+      creePar: r.userId ? userMap[r.userId] : null
+    }));
+    
+    res.json(enriched);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/epargnes', async (req, res) => {
+  try {
+    const { libelle, montant, voyageId } = req.body;
+    const id = uuidv4();
+    await pool.query(
+      'INSERT INTO epargnes (id, libelle, montant, voyageId, userId) VALUES (?, ?, ?, ?, ?)',
+      [id, libelle, parseFloat(montant) || 0, voyageId || null, req.user.id]
+    );
+    res.json({ id, libelle, montant, voyageId, userId: req.user.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/epargnes/:id', async (req, res) => {
+  try {
+    const { libelle, montant, voyageId } = req.body;
+    await pool.query(
+      'UPDATE epargnes SET libelle = ?, montant = ?, voyageId = ? WHERE id = ?',
+      [libelle, parseFloat(montant) || 0, voyageId || null, req.params.id]
+    );
+    res.json({ id: req.params.id, libelle, montant, voyageId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/epargnes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM epargnes WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start the server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
@@ -538,6 +599,24 @@ app.listen(PORT, async () => {
   
   // Seed Database on startup automatically
   try {
+    // Safely create table epargnes if it doesn't exist
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS epargnes (
+          id VARCHAR(255) PRIMARY KEY,
+          libelle VARCHAR(255) NOT NULL,
+          montant DECIMAL(15, 2) NOT NULL,
+          voyageId VARCHAR(255),
+          userId VARCHAR(255) DEFAULT NULL,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (voyageId) REFERENCES voyages(id) ON DELETE SET NULL
+        )
+      `);
+      console.log('Table "epargnes" created or verified.');
+    } catch (e) {
+      console.error('Error creating table "epargnes":', e.message);
+    }
+
     // Safely add columns if they do not exist
     try {
       await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');

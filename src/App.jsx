@@ -8,6 +8,7 @@ import Clients from './components/clients/Clients';
 import Factures from './components/factures/Factures';
 import Voyages from './components/voyages/Voyages';
 import Depenses from './components/depenses/Depenses';
+import Epargnes from './components/epargnes/Epargnes';
 import Statistiques from './components/statistiques/Statistiques';
 import Parametres from './components/parametres/Parametres';
 import Users from './components/users/Users';
@@ -34,6 +35,7 @@ function App() {
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
             <Route path="/voyages" element={<ProtectedRoute><Voyages /></ProtectedRoute>} />
             <Route path="/depenses" element={<ProtectedRoute><Depenses /></ProtectedRoute>} />
+            <Route path="/epargnes" element={<ProtectedRoute><Epargnes /></ProtectedRoute>} />
             <Route path="/statistiques" element={<ProtectedRoute><Statistiques /></ProtectedRoute>} />
             <Route path="/parametres" element={<ProtectedRoute><Parametres /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />

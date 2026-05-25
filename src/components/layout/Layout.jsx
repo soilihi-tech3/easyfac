@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell, MessageCircle
+  Bell, MessageCircle, PiggyBank
 } from 'lucide-react';
 import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
@@ -17,6 +17,7 @@ const ALL_NAV_ITEMS = [
   { path: '/clients',      label: 'Clients',           Icon: Users },
   { path: '/voyages',      label: 'Voyages',           Icon: Truck },
   { path: '/depenses',     label: 'Dépenses',          Icon: TrendingDown },
+  { path: '/epargnes',     label: 'Épargne',           Icon: PiggyBank, adminOnly: true },
   { path: '/statistiques', label: 'Statistiques',      Icon: BarChart2, adminOnly: true },
 ];
 
@@ -32,6 +33,19 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [online, setOnline] = useState(window.navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const isAdmin = user?.role === 'admin';
   const isEmployee = user?.role === 'employee';
@@ -544,10 +558,17 @@ export default function Layout({ children }) {
               </div>
             )}
 
-            <div className="status-pill">
-              <span className="status-dot" />
-              En ligne
-            </div>
+            {online ? (
+              <div className="status-pill">
+                <span className="status-dot" style={{ background: '#10b981', boxShadow: '0 0 6px #10b981' }} />
+                En ligne
+              </div>
+            ) : (
+              <div className="status-pill warning" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.25)' }}>
+                <span className="status-dot" style={{ background: '#f59e0b', boxShadow: '0 0 8px #f59e0b', animation: 'pulse 1.5s infinite' }} />
+                Hors ligne (Local)
+              </div>
+            )}
           </div>
         </header>
 

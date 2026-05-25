@@ -1054,6 +1054,36 @@ input:-webkit-autofill:active {
   grid-template-columns: repeat(4, 1fr);
 }
 
+/* Modals Forms grids responsive rules */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.col-span-2 {
+  grid-column: span 2;
+}
+
+.permissions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 600px) {
+  .form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .col-span-2 {
+    grid-column: auto !important;
+  }
+  .permissions-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+}
+
 /* 🔒 PURE VIEWPORT HORIZONTAL LOCK (PREVENTS MOBILE PAGE WIGGLING/DANCING) */
 html, body {
   max-width: 100vw !important;

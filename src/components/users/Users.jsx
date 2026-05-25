@@ -451,8 +451,8 @@ export default function Users() {
       </div>
 
       {showModal && createPortal(
-        <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-strong)', padding: 32, borderRadius: 24, width: '100%', maxWidth: 740, boxShadow: 'var(--shadow-xl)', overflowY: 'auto', maxHeight: 'calc(100vh - 40px)', animation: 'scaleIn 0.2s ease-out' }}>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 740 }}>
             <div className="modal-header" style={{ marginBottom: 24 }}>
               <h2 className="modal-title" style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)' }}>
                 {editingUser ? 'Modifier les accès collaborateur' : 'Enregistrer un nouveau collaborateur'}
@@ -462,7 +462,7 @@ export default function Users() {
             
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Account Info Details */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Prénom *</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -479,7 +479,7 @@ export default function Users() {
                   </div>
                 </div>
 
-                <div className="form-group" style={{ gridColumn: 'span 1' }}>
+                <div className="form-group">
                   <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Adresse Email *</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }}><Mail size={14} /></span>
@@ -495,7 +495,7 @@ export default function Users() {
                   </select>
                 </div>
 
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <div className="form-group col-span-2">
                   <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Mot de passe {editingUser && '(Laisser vide pour ne pas modifier)'}</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }}><Lock size={14} /></span>
@@ -553,7 +553,7 @@ export default function Users() {
                   </div>
 
                   {/* 2x2 Balanced Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                  <div className="permissions-grid">
                     
                     {/* CATEGORY 1: FACTURES */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 16, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>

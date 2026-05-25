@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate } from '../../data/store';
 import { useApp } from '../../context/AppContext';
-import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign } from 'lucide-react';
+import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
 import FactureModal from './FactureModal';
 import ReceiptModal from './ReceiptModal';
 import { createPortal } from 'react-dom';
@@ -253,14 +253,10 @@ export default function Factures() {
   return (
     <div className="page-enter">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
           <h1 className="page-title">Factures</h1>
-          <p className="page-subtitle">
-            {factures.length} facture{factures.length > 1 ? 's' : ''} —{' '}
-            CA: <strong style={{ color: 'var(--brand)' }}>{formatCurrency(totalCA, devise)}</strong>{' '}
-            · Encaissé: <strong style={{ color: 'var(--success)' }}>{formatCurrency(totalPaye, devise)}</strong>
-          </p>
+          <p className="page-subtitle">Pilotez la facturation, enregistrez les règlements et suivez les soldes.</p>
         </div>
         {(isAdmin || permissions.creerFacture) && (
           <button className="btn btn-primary" onClick={openAdd}>
@@ -269,27 +265,122 @@ export default function Factures() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap items-center justify-between" style={{ marginBottom: 20, width: '100%' }}>
-        <div className="flex gap-3 flex-wrap flex-1" style={{ minWidth: 280 }}>
-          <div className="search-bar" style={{ flex: '1 1 200px', width: '100%' }}>
-            <span className="search-icon-wrap"><Search size={15} /></span>
-            <input className="form-input" style={{ width: '100%' }} placeholder="N°, client..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Factures KPI Grid */}
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
+        {/* KPI 1 */}
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--info)', '--kpi-bg': 'var(--info-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-muted)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FileText size={18} strokeWidth={2} />
           </div>
-          <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterStatut} onChange={e => setFilterStatut(e.target.value)}>
-            {STATUTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select className="form-input form-select" style={{ flex: '1 1 180px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{factures.length}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Nombre de factures</div>
+          </div>
+        </div>
+
+        {/* KPI 2 */}
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--brand)', '--kpi-bg': 'var(--brand-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--brand-muted)', color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <TrendingUp size={18} strokeWidth={2} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalCA, devise)}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Chiffre d'affaires</div>
+          </div>
+        </div>
+
+        {/* KPI 3 */}
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--success-muted)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CheckCircle size={18} strokeWidth={2} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalPaye, devise)}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Montant encaissé</div>
+          </div>
+        </div>
+
+        {/* KPI 4 */}
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
+          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--danger-muted)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Clock size={18} strokeWidth={2} />
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalCA - totalPaye, devise)}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Reste à percevoir</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col gap-3" style={{ marginBottom: 20, width: '100%' }}>
+        {/* Row 1: Search and Main categories */}
+        <div className="flex gap-3 flex-wrap items-center justify-between" style={{ width: '100%' }}>
+          <div className="flex gap-3 flex-wrap flex-1" style={{ minWidth: 280 }}>
+            <div className="search-bar" style={{ flex: '2 1 240px' }}>
+              <span className="search-icon-wrap"><Search size={15} /></span>
+              <input className="form-input" style={{ width: '100%' }} placeholder="Rechercher par N° facture, expéditeur, destinataire..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterStatut} onChange={e => setFilterStatut(e.target.value)}>
+              {STATUTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterPays} onChange={e => setFilterPays(e.target.value)}>
+              <option value="">Tous les pays</option>
+              <option value="senegal">Sénégal</option>
+              <option value="comores">Comores (100%)</option>
+              <option value="sen_com">Sen-Com (Mixte)</option>
+            </select>
+          </div>
+          <button
+            className={`btn ${filterOverdue ? 'btn-danger' : 'btn-secondary'}`}
+            onClick={() => setFilterOverdue(!filterOverdue)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 42,
+              padding: '0 16px',
+              borderRadius: 10,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: 'none',
+              flexShrink: 0,
+              ...(filterOverdue ? {
+                background: 'var(--danger)',
+                color: '#ffffff'
+              } : {
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-secondary)'
+              })
+            }}
+            onMouseOver={e => {
+              if (!filterOverdue) {
+                e.currentTarget.style.background = 'var(--bg-card)';
+                e.currentTarget.style.color = 'var(--text-main)';
+              }
+            }}
+            onMouseOut={e => {
+              if (!filterOverdue) {
+                e.currentTarget.style.background = 'var(--bg-elevated)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+              }
+            }}
+          >
+            <Bell size={14} />
+            {filterOverdue ? "Toutes les factures" : "Rappels d'échéances"}
+          </button>
+        </div>
+
+        {/* Row 2: Voyages and Dates */}
+        <div className="flex gap-3 flex-wrap items-center" style={{ width: '100%' }}>
+          <select className="form-input form-select" style={{ flex: '2 1 200px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
             <option value="">Tous les voyages</option>
             {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
           </select>
-          <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterPays} onChange={e => setFilterPays(e.target.value)}>
-            <option value="">Tous les pays</option>
-            <option value="senegal">Sénégal</option>
-            <option value="comores">Comores (100%)</option>
-            <option value="sen_com">Sen-Com (Mixte)</option>
-          </select>
-          <select className="form-input form-select" style={{ flex: '1 1 130px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
+          <select className="form-input form-select" style={{ flex: '1 1 120px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
             <option value="">Tous les mois</option>
             <option value="0">Janvier</option>
             <option value="1">Février</option>
@@ -304,7 +395,7 @@ export default function Factures() {
             <option value="10">Novembre</option>
             <option value="11">Décembre</option>
           </select>
-          <select className="form-input form-select" style={{ flex: '1 1 130px' }} value={filterAnnee} onChange={e => setFilterAnnee(e.target.value)}>
+          <select className="form-input form-select" style={{ flex: '1 1 120px' }} value={filterAnnee} onChange={e => setFilterAnnee(e.target.value)}>
             <option value="">Toutes les années</option>
             {Array.from({ length: 7 }, (_, i) => {
               const y = 2024 + i;
@@ -312,47 +403,6 @@ export default function Factures() {
             })}
           </select>
         </div>
-        <button
-          className={`btn ${filterOverdue ? 'btn-danger' : 'btn-secondary'}`}
-          onClick={() => setFilterOverdue(!filterOverdue)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            height: 42,
-            padding: '0 16px',
-            borderRadius: 10,
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            border: 'none',
-            flexShrink: 0,
-            ...(filterOverdue ? {
-              background: 'var(--danger)',
-              color: '#ffffff'
-            } : {
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-secondary)'
-            })
-          }}
-          onMouseOver={e => {
-            if (!filterOverdue) {
-              e.currentTarget.style.background = 'var(--bg-card)';
-              e.currentTarget.style.color = 'var(--text-main)';
-            }
-          }}
-          onMouseOut={e => {
-            if (!filterOverdue) {
-              e.currentTarget.style.background = 'var(--bg-elevated)';
-              e.currentTarget.style.color = 'var(--text-secondary)';
-            }
-          }}
-        >
-          <Bell size={14} />
-          {filterOverdue ? "Voir toutes les factures" : "Rappels d'échéances"}
-        </button>
       </div>
 
       {/* Table */}

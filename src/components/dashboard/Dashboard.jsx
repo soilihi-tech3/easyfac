@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import {
   TrendingUp, CheckCircle, Clock, Activity,
-  Users, FileText, ArrowRight
+  Users, FileText, ArrowRight, Truck
 } from 'lucide-react';
-import { getStats, getFactures, getClients, formatCurrency, formatDate } from '../../data/store';
+import { getStats, getFactures, getClients, getVoyages, formatCurrency, formatDate } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import './Dashboard.css';
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [recentFactures, setRecentFactures] = useState([]);
   const [topClients, setTopClients] = useState([]);
+  const [topVoyages, setTopVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
@@ -42,7 +43,7 @@ export default function Dashboard() {
 
     const monthly = {};
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
+    for (let i = 3; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0 };
@@ -70,12 +71,32 @@ export default function Dashboard() {
     const load = async () => {
       if (isFirstLoad) setLoading(true);
       try {
-        const [s, allFac, allDeps, clients] = await Promise.all([
+        const [s, allFac, allDeps, clients, voyages] = await Promise.all([
           getStats(),
           getFactures(),
           import('../../data/store').then(m => m.getDepenses()),
-          getClients()
+          getClients(),
+          getVoyages()
         ]);
+
+        const employeeVoyages = user?.role === 'employee'
+          ? voyages.filter(v => v.id === user.voyageId)
+          : voyages;
+
+        const voyageStats = employeeVoyages.map(v => {
+          const facs = allFac.filter(f => f.voyageId === v.id);
+          const ca = facs.reduce((sum, f) => sum + Number(f.montantTotal || 0), 0);
+          const paye = facs.reduce((sum, f) => sum + Number(f.montantPaye || 0), 0);
+          return {
+            name: v.nom,
+            ca,
+            paye
+          };
+        })
+        .sort((a, b) => b.ca - a.ca)
+        .slice(0, 4);
+
+        setTopVoyages(voyageStats);
 
         if (user?.role === 'employee') {
           // Employee dashboard restricted: only their own invoices, clients, expenses
@@ -106,8 +127,9 @@ export default function Dashboard() {
           setTopClients(clientCounts);
 
         } else {
-          // Admin dashboard: full site stats
-          setStats(s);
+          // Admin dashboard: full site stats (real-time client calculation)
+          const localStats = computeLocalStats(allFac, allDeps, clients);
+          setStats(localStats);
 
           const factures = [...allFac]
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -233,7 +255,7 @@ export default function Dashboard() {
         <div className="card chart-card">
           <div className="card-header">
             <h3>Évolution du chiffre d'affaires</h3>
-            <span className="badge badge-success">6 derniers mois</span>
+            <span className="badge badge-success">4 derniers mois</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={stats.monthly} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -329,83 +351,81 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Invoices */}
+        {/* Top 4 Voyages Chart */}
         <div className="card recent-factures">
           <div className="card-header">
-            <h3>Factures récentes</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/factures')}>
-              Voir tout <ArrowRight size={13} />
-            </button>
+            <h3>Top 4 Voyages les plus profitables</h3>
+            <span className="badge badge-purple" style={{ gap: 4 }}>
+              <Truck size={12} /> Logistique
+            </span>
           </div>
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>N° Facture</th>
-                  <th>Client</th>
-                  <th>Montant</th>
-                  <th>Statut</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentFactures.map(f => (
-                  <tr key={f.id} style={{ cursor: 'pointer' }} onClick={() => navigate('/factures')}>
-                    <td>
-                      <code style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700, letterSpacing: '0.02em' }}>
-                        {f.numero}
-                      </code>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{f.expediteur?.prenom} {f.expediteur?.nom}</td>
-                    <td style={{ fontWeight: 700 }}>{formatCurrency(f.montantTotal, devise)}</td>
-                    <td>
-                      <span className={`badge ${STATUT_CONFIG[f.statut]?.cls}`}>
-                        {STATUT_CONFIG[f.statut]?.label}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(f.createdAt)}</td>
-                  </tr>
-                ))}
-                {recentFactures.length === 0 && (
-                  <tr><td colSpan={5}>
-                    <div className="empty-state" style={{ padding: '30px' }}>
-                      <div className="empty-icon"><FileText size={24} /></div>
-                      <div className="empty-title">Aucune facture</div>
-                    </div>
-                  </td></tr>
-                )}
-              </tbody>
-            </table>
+          <div style={{ padding: '10px 0' }}>
+            {topVoyages.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={topVoyages} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
+                      borderRadius: 10, color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-md)',
+                    }}
+                    labelStyle={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12 }}
+                    formatter={(v) => [formatCurrency(v, devise), '']}
+                  />
+                  <Bar dataKey="ca" name="Chiffre d'affaires" fill="#a855f7" radius={[4,4,0,0]} />
+                  <Bar dataKey="paye" name="Encaissé" fill="#22c55e" radius={[4,4,0,0]} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" iconSize={7} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="empty-state" style={{ padding: '40px 20px' }}>
+                <div className="empty-icon"><Truck size={24} /></div>
+                <div className="empty-title">Aucune donnée de voyage</div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Top Clients */}
+        {/* Top Voyages Pie Chart */}
         <div className="card" style={{ gridColumn: '2' }}>
           <div className="card-header">
-            <h3>Meilleurs clients</h3>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/clients')}>
-              Voir tout <ArrowRight size={13} />
-            </button>
+            <h3>Répartition CA par Voyage</h3>
           </div>
-          <div className="client-list">
-            {topClients.map((c, i) => (
-              <div key={c.id} className="client-row">
-                <div className="client-rank">#{i + 1}</div>
-                <div className="client-avatar">{c.prenom?.[0]}{c.nom?.[0]}</div>
-                <div className="client-info">
-                  <div className="client-name">{c.prenom} {c.nom}</div>
-                  <div className="client-tel">{c.telephone}</div>
-                </div>
-                <div className="client-stats">
-                  <div className="client-nb">{c.nbFactures} fac.</div>
-                  <div className="client-ca">{formatCurrency(c.totalCA, devise)}</div>
-                </div>
-              </div>
-            ))}
-            {topClients.length === 0 && (
-              <div className="empty-state" style={{ padding: '30px' }}>
-                <div className="empty-icon"><Users size={24} /></div>
-                <div className="empty-title">Aucun client</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 240 }}>
+            {topVoyages.length > 0 ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={topVoyages}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={3}
+                    dataKey="ca"
+                  >
+                    {topVoyages.map((entry, index) => {
+                      const COLORS = ['#6366f1', '#a855f7', '#22c55e', '#f59e0b'];
+                      return <Cell key={index} fill={COLORS[index % COLORS.length]} stroke="none" />;
+                    })}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
+                      borderRadius: 10, color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-md)',
+                    }}
+                    formatter={(v) => [formatCurrency(v, devise), 'CA']}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} iconType="circle" iconSize={6} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="empty-state" style={{ padding: '40px 20px' }}>
+                <div className="empty-title">Aucun voyage actif</div>
               </div>
             )}
           </div>

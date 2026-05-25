@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
   role ENUM('admin', 'employee') DEFAULT 'employee',
   voyageId VARCHAR(255),
   permissions TEXT DEFAULT NULL,
+  telephone VARCHAR(100) DEFAULT NULL,
+  active TINYINT DEFAULT 1,
   createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (voyageId) REFERENCES voyages(id) ON DELETE SET NULL
 );

@@ -15,11 +15,12 @@ export default function Statistiques() {
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true);
+      if (isFirstLoad) setLoading(true);
       try {
         const [facs, deps, clis, voys] = await Promise.all([
           getFactures(),
@@ -31,13 +32,14 @@ export default function Statistiques() {
         setAllDepenses(deps);
         setAllClients(clis);
         setAllVoyages(voys);
+        setIsFirstLoad(false);
       } catch (err) {
         console.error(err);
       }
       setLoading(false);
     };
     load();
-  }, [refresh]);
+  }, [refresh, isFirstLoad]);
 
   if (loading) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
 

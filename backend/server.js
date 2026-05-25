@@ -32,6 +32,13 @@ const { v4: uuidv4 } = require('uuid');
 app.get('/api/status', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 + 1 AS solution');
+    // Safely add new columns if they do not exist
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
+    } catch (e) {}
     // Ensure default users exist
     const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
       const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
@@ -74,6 +81,9 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     const user = users[0];
+    if (user.active === 0 || user.active === false) {
+      return res.status(401).json({ error: "Votre compte a été désactivé par l'administrateur." });
+    }
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       console.log('Password mismatch.');
@@ -120,7 +130,7 @@ app.get('/api/auth/me', async (req, res) => {
 app.get('/api/users', async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
-    const [rows] = await pool.query('SELECT id, nom, prenom, email, role, voyageId, permissions, createdAt FROM users ORDER BY createdAt DESC');
+    const [rows] = await pool.query('SELECT id, nom, prenom, email, role, voyageId, permissions, telephone, active, createdAt FROM users ORDER BY createdAt DESC');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -131,15 +141,16 @@ app.post('/api/users', async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
     const id = uuidv4();
-    const { nom, prenom, email, password, role, voyageId, permissions } = req.body;
+    const { nom, prenom, email, password, role, voyageId, permissions, telephone, active } = req.body;
     const cleanVoyageId = (voyageId === '' || voyageId === undefined || voyageId === 'null') ? null : voyageId;
     const hash = await bcrypt.hash(password, 10);
     const permString = permissions ? JSON.stringify(permissions) : null;
+    const activeVal = active === undefined ? 1 : (active ? 1 : 0);
     await pool.query(
-      'INSERT INTO users (id, nom, prenom, email, password, role, voyageId, permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString]
+      'INSERT INTO users (id, nom, prenom, email, password, role, voyageId, permissions, telephone, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString, telephone || null, activeVal]
     );
-    res.json({ id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions });
+    res.json({ id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -148,22 +159,23 @@ app.post('/api/users', async (req, res) => {
 app.put('/api/users/:id', async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
-    const { nom, prenom, email, password, role, voyageId, permissions } = req.body;
+    const { nom, prenom, email, password, role, voyageId, permissions, telephone, active } = req.body;
     const cleanVoyageId = (voyageId === '' || voyageId === undefined || voyageId === 'null') ? null : voyageId;
     const permString = permissions ? JSON.stringify(permissions) : null;
+    const activeVal = active === undefined ? 1 : (active ? 1 : 0);
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await pool.query(
-        'UPDATE users SET nom=?, prenom=?, email=?, password=?, role=?, voyageId=?, permissions=? WHERE id=?',
-        [nom, prenom, email, hash, role, cleanVoyageId, permString, req.params.id]
+        'UPDATE users SET nom=?, prenom=?, email=?, password=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=?',
+        [nom, prenom, email, hash, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id]
       );
     } else {
       await pool.query(
-        'UPDATE users SET nom=?, prenom=?, email=?, role=?, voyageId=?, permissions=? WHERE id=?',
-        [nom, prenom, email, role, cleanVoyageId, permString, req.params.id]
+        'UPDATE users SET nom=?, prenom=?, email=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=?',
+        [nom, prenom, email, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id]
       );
     }
-    res.json({ id: req.params.id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions });
+    res.json({ id: req.params.id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -526,6 +538,16 @@ app.listen(PORT, async () => {
   
   // Seed Database on startup automatically
   try {
+    // Safely add columns if they do not exist
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
+      console.log('Column "telephone" added to "users" table.');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
+      console.log('Column "active" added to "users" table.');
+    } catch (e) {}
+
     const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
       const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
       if (existing[0].count === 0) {

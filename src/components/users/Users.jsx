@@ -43,6 +43,8 @@ export default function Users() {
     password: '',
     role: 'employee',
     voyageId: '',
+    telephone: '',
+    active: true,
     permissions: { ...defaultPermissions }
   });
 
@@ -129,6 +131,28 @@ export default function Users() {
     }
   };
 
+  const toggleUserActive = async (u) => {
+    try {
+      const updatedActive = u.active !== 0 ? 0 : 1;
+      const res = await fetch(`${API_URL}/api/users/${u.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          ...u,
+          active: updatedActive
+        })
+      });
+      if (res.ok) {
+        await fetchUsers();
+      } else {
+        const err = await res.json();
+        alert(err.error);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const openModal = (user = null) => {
     if (user) {
       setEditingUser(user);
@@ -152,6 +176,8 @@ export default function Users() {
         password: '', 
         role: user.role || 'employee', 
         voyageId: user.voyageId || '', 
+        telephone: user.telephone || '',
+        active: user.active !== 0,
         permissions: parsedPerms 
       });
     } else {
@@ -163,6 +189,8 @@ export default function Users() {
         password: '',
         role: 'employee',
         voyageId: '',
+        telephone: '',
+        active: true,
         permissions: { ...defaultPermissions }
       });
     }
@@ -273,9 +301,10 @@ export default function Users() {
             <thead>
               <tr>
                 <th>Nom & Prénom</th>
-                <th>Email</th>
+                <th>Email & Tél.</th>
                 <th>Rôle</th>
                 <th>Voyage Assigné</th>
+                <th>Statut Compte</th>
                 <th>Permissions & Droits</th>
                 <th style={{ width: 100, textAlign: 'right' }}>Actions</th>
               </tr>
@@ -304,7 +333,10 @@ export default function Users() {
                         </div>
                       </div>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{u.email}</td>
+                    <td>
+                      <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{u.email}</div>
+                      {u.telephone && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>📞 {u.telephone}</div>}
+                    </td>
                     <td>
                       {u.role === 'admin' ? (
                         <span className="badge badge-brand" style={{ gap: 4, background: 'var(--purple-muted)', color: 'var(--purple)' }}>
@@ -330,6 +362,22 @@ export default function Users() {
                           </span>
                         )
                       )}
+                    </td>
+                    <td>
+                      <span
+                        onClick={() => u.id !== currentUser.id && toggleUserActive(u)}
+                        className={`badge ${u.active !== 0 ? 'badge-success' : 'badge-danger'}`}
+                        style={{
+                          cursor: u.id !== currentUser.id ? 'pointer' : 'default',
+                          gap: 4,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          fontWeight: 700
+                        }}
+                        title={u.id !== currentUser.id ? "Cliquer pour changer le statut" : "Votre propre compte"}
+                      >
+                        {u.active !== 0 ? 'Actif' : 'Désactivé'}
+                      </span>
                     </td>
                     <td>
                       {u.role === 'admin' ? (
@@ -451,6 +499,26 @@ export default function Users() {
                     <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }}><Lock size={14} /></span>
                     <input type="password" className="form-input" required={!editingUser} value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="••••••••" style={{ paddingLeft: 38, height: 42 }} />
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Numéro de Téléphone</label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }}><Search size={14} /></span>
+                    <input className="form-input" value={form.telephone || ''} onChange={e => setForm({...form, telephone: e.target.value})} placeholder="Ex: +221 77 000 00 00" style={{ paddingLeft: 38, height: 42 }} />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: 24 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!form.active}
+                      onChange={e => setForm({...form, active: e.target.checked})}
+                      style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--success)' }}
+                    />
+                    Compte Actif (Autoriser l'accès)
+                  </label>
                 </div>
               </div>
 

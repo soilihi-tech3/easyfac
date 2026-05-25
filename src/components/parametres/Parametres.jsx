@@ -100,9 +100,27 @@ export default function Parametres() {
               <label className="form-label">Nom de l'entreprise</label>
               <input className="form-input" value={params.entreprise?.nom || ''} onChange={e => updateEnt('nom', e.target.value)} placeholder="Transport Sénégal SARL" />
             </div>
-            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-              <label className="form-label">Adresse / Lieu principal (Sénégal)</label>
+
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input className="form-input" type="email" value={params.entreprise?.email || ''} onChange={e => updateEnt('email', e.target.value)} placeholder="contact@transport-sn.com" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Site web</label>
+              <input className="form-input" value={params.entreprise?.siteWeb || ''} onChange={e => updateEnt('siteWeb', e.target.value)} placeholder="www.transport-sn.com" />
+            </div>
+
+            {/* SÉNÉGAL */}
+            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-default)', marginTop: 12, paddingTop: 16 }}>
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--brand)', marginBottom: 4 }}>1. Agence principale (Sénégal)</h4>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ville / Lieu (Sénégal)</label>
               <input className="form-input" value={params.entreprise?.adresse || ''} onChange={e => updateEnt('adresse', e.target.value)} placeholder="Dakar, Sénégal" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rue (Sénégal)</label>
+              <input className="form-input" value={params.entreprise?.rueSenegal || ''} onChange={e => updateEnt('rueSenegal', e.target.value)} placeholder="FANN HOCK ,Canal VI terminus 71" />
             </div>
             <div className="form-group">
               <label className="form-label">Téléphone Sénégal 1</label>
@@ -113,9 +131,17 @@ export default function Parametres() {
               <input className="form-input" value={params.entreprise?.telephone2 || ''} onChange={e => updateEnt('telephone2', e.target.value)} />
             </div>
 
-            <div className="form-group" style={{ gridColumn: '1 / -1', marginTop: 8 }}>
-              <label className="form-label">Adresse / Lieu secondaire (Comores)</label>
+            {/* COMORES */}
+            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-default)', marginTop: 12, paddingTop: 16 }}>
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--brand)', marginBottom: 4 }}>2. Agence secondaire (Comores)</h4>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ville / Lieu (Comores)</label>
               <input className="form-input" value={params.entreprise?.lieuComores || ''} onChange={e => updateEnt('lieuComores', e.target.value)} placeholder="Moroni, Comores" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rue (Comores)</label>
+              <input className="form-input" value={params.entreprise?.rueComores || ''} onChange={e => updateEnt('rueComores', e.target.value)} placeholder="Moroni EGT t" />
             </div>
             <div className="form-group">
               <label className="form-label">Téléphone Comores 1</label>
@@ -126,13 +152,29 @@ export default function Parametres() {
               <input className="form-input" value={params.entreprise?.telComores2 || ''} onChange={e => updateEnt('telComores2', e.target.value)} />
             </div>
 
-            <div className="form-group" style={{ marginTop: 8 }}>
-              <label className="form-label">Email</label>
-              <input className="form-input" type="email" value={params.entreprise?.email || ''} onChange={e => updateEnt('email', e.target.value)} />
+            {/* TROISIÈME ADRESSE */}
+            <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-default)', marginTop: 12, paddingTop: 16 }}>
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--brand)', marginBottom: 4 }}>3. Autre Adresse / 3ème Agence (Facultatif)</h4>
             </div>
-            <div className="form-group" style={{ marginTop: 8 }}>
-              <label className="form-label">Site web</label>
-              <input className="form-input" value={params.entreprise?.siteWeb || ''} onChange={e => updateEnt('siteWeb', e.target.value)} placeholder="https://..." />
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label className="form-label">Nom de l'agence / Libellé de l'adresse</label>
+              <input className="form-input" value={params.entreprise?.nomAutre || ''} onChange={e => updateEnt('nomAutre', e.target.value)} placeholder="AUTRE ADRESSE, AGENCE SENEGAL 2, etc." />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Ville / Lieu (Autre)</label>
+              <input className="form-input" value={params.entreprise?.lieuAutre || ''} onChange={e => updateEnt('lieuAutre', e.target.value)} placeholder="Mutsamudu, Anjouan" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Rue (Autre)</label>
+              <input className="form-input" value={params.entreprise?.rueAutre || ''} onChange={e => updateEnt('rueAutre', e.target.value)} placeholder="Quartier commercial" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Téléphone Autre 1</label>
+              <input className="form-input" value={params.entreprise?.telAutre1 || ''} onChange={e => updateEnt('telAutre1', e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Téléphone Autre 2</label>
+              <input className="form-input" value={params.entreprise?.telAutre2 || ''} onChange={e => updateEnt('telAutre2', e.target.value)} />
             </div>
           </div>
         </SectionCard>

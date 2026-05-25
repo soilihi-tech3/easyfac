@@ -995,14 +995,15 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             display: none !important;
           }
 
-          /* Print area specific styles with color forcing and scaling down to guarantee exactly 1 page */
           #receipt-print-area {
             display: block !important;
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            height: 296mm !important;
+            max-height: 296mm !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
             box-shadow: none !important;
@@ -1012,8 +1013,6 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             print-color-adjust: exact !important;
             
             /* Strict single page limits */
-            height: 100% !important;
-            max-height: 100% !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;

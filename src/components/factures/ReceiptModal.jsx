@@ -148,7 +148,42 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           color-scheme: light !important;
         }
 
+        /* Normal view header styles */
+        .receipt-top-bar {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          width: 100% !important;
+          max-width: 720px !important;
+          background: var(--bg-elevated) !important;
+          border: 1px solid var(--border-strong) !important;
+          border-radius: 16px !important;
+          padding: 12px 16px !important;
+          margin-bottom: 12px !important;
+          gap: 12px !important;
+          flex-shrink: 0 !important;
+          box-shadow: var(--shadow-lg) !important;
+          box-sizing: border-box !important;
+        }
+        .receipt-top-bar-title {
+          display: flex !important;
+          align-items: center !important;
+          gap: 10px !important;
+        }
+        .receipt-actions-row {
+          display: flex !important;
+          gap: 8px !important;
+          align-items: center !important;
+          flex-shrink: 0 !important;
+        }
+
         @media print {
+          /* Enforce single physical page, no margins/headers/footers */
+          @page {
+            size: portrait;
+            margin: 0 !important;
+          }
+
           /* Force page background to white and prevent overflow scroll */
           html, body {
             background: #ffffff !important;
@@ -160,8 +195,11 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             padding: 0 !important;
           }
 
-          /* Hide everything under body except our modal */
-          body > * {
+          /* Hide all sibling elements of the modal overlay */
+          body > :not(.modal-overlay) {
+            display: none !important;
+          }
+          #root {
             display: none !important;
           }
 
@@ -216,22 +254,25 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             
             /* Strict single page limits */
             height: 100% !important;
-            max-height: 100vh !important;
+            max-height: 100% !important;
             overflow: hidden !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+            page-break-before: avoid !important;
             
             /* Apply general scaling zoom for standard layouts to comfortably fit more articles */
-            zoom: 0.82 !important; 
+            zoom: 0.85 !important; 
           }
 
           #receipt-print-area > div {
-            padding: 12px 20px !important; /* reduce excessive padding */
+            padding: 20px 30px !important; /* reduce excessive padding */
+            box-sizing: border-box !important;
           }
 
           /* Tighter spacings to shrink height dynamically for printing */
           #receipt-print-area h1 {
-            font-size: 22px !important;
+            font-size: 20px !important;
           }
           #receipt-print-area .receipt-header-row {
             margin-bottom: 8px !important;
@@ -263,15 +304,28 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             print-color-adjust: exact !important;
             page-break-inside: avoid !important;
           }
-
-          /* Clean up page margins */
-          @page {
-            margin: 0.8cm !important;
-            size: auto;
-          }
         }
 
         @media screen and (max-width: 600px) {
+          .receipt-top-bar {
+            flex-wrap: wrap !important;
+            padding: 10px !important;
+            border-radius: 12px !important;
+            gap: 8px !important;
+          }
+          .receipt-top-bar-title {
+            flex: 1 1 auto !important;
+          }
+          .receipt-actions-row {
+            flex: 1 1 auto !important;
+            width: 100% !important;
+            justify-content: flex-end !important;
+            gap: 6px !important;
+          }
+          .receipt-actions-row button {
+            padding: 8px 10px !important;
+            font-size: 11px !important;
+          }
           #receipt-print-area {
             font-size: 11px !important;
           }
@@ -320,13 +374,6 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             padding: 6px 8px !important;
             font-size: 11px !important;
           }
-          .receipt-actions-row {
-            gap: 4px !important;
-          }
-          .receipt-actions-row button {
-            padding: 8px 10px !important;
-            font-size: 11px !important;
-          }
         }
       `}} />
       {/* Inner centering wrapper */}
@@ -340,29 +387,16 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       {/* ── Sticky action bar OUTSIDE the scrollable modal ── */}
       <div
         onClick={e => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: 720,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border-strong)',
-          borderRadius: 16,
-          padding: '12px 16px',
-          marginBottom: 12,
-          gap: 12,
-          flexShrink: 0,
-          boxShadow: 'var(--shadow-lg)',
-        }}
+        className="receipt-top-bar"
       >
         {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="receipt-top-bar-title">
           <div style={{
             width: 36, height: 36, borderRadius: 10,
             background: 'var(--brand-muted)', color: 'var(--brand)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 13,
+            flexShrink: 0
           }}>
             N°
           </div>
@@ -377,7 +411,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }} className="receipt-actions-row">
+        <div className="receipt-actions-row">
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleExportPDF}
@@ -386,13 +420,6 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--purple-muted)'; e.currentTarget.style.color = 'var(--purple)'; }}
           >
             <FileText size={14} /> Exporter PDF
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={handlePrint}
-            style={{ gap: 6 }}
-          >
-            <Printer size={14} /> Imprimer
           </button>
           {facture.montantTotal - facture.montantPaye > 0 && (
             <button
@@ -452,9 +479,13 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           {/* Top Header */}
           <div className="receipt-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
             <div style={{ flex: 1 }}>
-              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>
-                {entreprise.nom || 'EASYFAC'}
-              </h1>
+              {entreprise.logo ? (
+                <img src={entreprise.logo} alt={entreprise.nom || 'Logo'} style={{ maxHeight: 55, maxWidth: 200, objectFit: 'contain' }} />
+              ) : (
+                <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#0f172a', margin: 0, textTransform: 'uppercase' }}>
+                  {entreprise.nom || 'EASYFAC'}
+                </h1>
+              )}
             </div>
             <div className="agencies-wrap" style={{ flex: 1, fontSize: 11, lineHeight: 1.5, textAlign: 'right' }}>
               <div style={{ display: 'flex', gap: 20, justifyContent: 'flex-end' }} className="agencies-inner-flex">
@@ -638,10 +669,28 @@ export default function ReceiptModal({ facture, onClose, devise }) {
             </table>
           </div>
 
-          {/* Cachet (sans signature textuelle) */}
-          {entreprise.cachet && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 30 }}>
-              <img src={entreprise.cachet} alt="Cachet" style={{ maxWidth: 120, maxHeight: 120, objectFit: 'contain' }} />
+          {/* Signature & Cachet Section */}
+          {(entreprise.cachet || entreprise.signature) && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'flex-end', 
+              alignItems: 'flex-end', 
+              gap: 30, 
+              marginTop: 20,
+              pageBreakInside: 'avoid'
+            }}>
+              {entreprise.signature && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Signature</span>
+                  <img src={entreprise.signature} alt="Signature" style={{ maxWidth: 110, maxHeight: 70, objectFit: 'contain' }} />
+                </div>
+              )}
+              {entreprise.cachet && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cachet Officiel</span>
+                  <img src={entreprise.cachet} alt="Cachet" style={{ maxWidth: 110, maxHeight: 75, objectFit: 'contain' }} />
+                </div>
+              )}
             </div>
           )}
         </div>

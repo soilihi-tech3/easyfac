@@ -5,9 +5,9 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell
+  Bell, MessageCircle
 } from 'lucide-react';
-import { getFactures, getDepenses, formatCurrency, formatDate } from '../../data/store';
+import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
 import './Layout.css';
 
@@ -160,6 +160,40 @@ export default function Layout({ children }) {
     }
     
     setShowNotifDropdown(false);
+  };
+
+  const handleReminderWhatsApp = async (facture) => {
+    try {
+      const params = await getParametres();
+      const entreprise = params?.entreprise || {};
+      const total = facture.montantTotal;
+      const paye = facture.montantPaye;
+      const reste = total - paye;
+      const dateStr = facture.dateLimite ? formatDate(facture.dateLimite) : "immédiatement";
+      
+      const lines = [
+        `*Rappel de paiement — Facture ${facture.numero}*`,
+        `Bonjour ${facture.expediteur?.prenom || ''} ${facture.expediteur?.nom || ''},`,
+        ``,
+        `Nous vous contactons pour le suivi de règlement de votre facture *${facture.numero}* :`,
+        `*Montant Total :* ${formatCurrency(total, devise)}`,
+        `*Déjà Payé :* ${formatCurrency(paye, devise)}`,
+        `*Reste à Payer :* *${formatCurrency(reste, devise)}*`,
+        `*Date d'échéance :* *${dateStr}*`,
+        ``,
+        `Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.`,
+        `Nous restons à votre entière disposition.`,
+        ``,
+        `Cordialement,`,
+        `*${entreprise.nom || 'EASYFAC'}*`
+      ].join('\n');
+      
+      let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
+      phone = phone.replace(/\D/g, '');
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, '_blank');
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleMarkAllAsRead = () => {
@@ -444,6 +478,58 @@ export default function Layout({ children }) {
                             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
                               {n.text}
                             </p>
+                            {n.type === 'late_invoice' && (
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }} onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => {
+                                    const updatedRead = [...readNotifications, n.id];
+                                    setReadNotifications(updatedRead);
+                                    localStorage.setItem('read_notifications', JSON.stringify(updatedRead));
+                                    handleReminderWhatsApp(n.item);
+                                    setShowNotifDropdown(false);
+                                  }}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'var(--success-muted)',
+                                    color: 'var(--success)',
+                                    border: '1px solid rgba(34,197,94,0.2)',
+                                    borderRadius: '6px',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--success)'; e.currentTarget.style.color = '#fff'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--success-muted)'; e.currentTarget.style.color = 'var(--success)'; }}
+                                >
+                                  <MessageCircle size={12} /> Rappel WhatsApp
+                                </button>
+                                <button
+                                  onClick={() => handleNotificationClick(n)}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'var(--brand-muted)',
+                                    color: 'var(--brand)',
+                                    border: '1px solid rgba(99,102,241,0.2)',
+                                    borderRadius: '6px',
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s'
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--brand)'; e.currentTarget.style.color = '#fff'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--brand-muted)'; e.currentTarget.style.color = 'var(--brand)'; }}
+                                >
+                                  <FileText size={12} /> Voir le reçu
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))
                       ) : (

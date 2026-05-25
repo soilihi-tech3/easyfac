@@ -140,6 +140,10 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           --border-strong: rgba(15,23,42,0.18) !important;
         }
 
+        #receipt-print-area table th {
+          color: #ffffff !important;
+        }
+
         #receipt-print-area * {
           color-scheme: light !important;
         }
@@ -390,6 +394,22 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           >
             <Printer size={14} /> Imprimer
           </button>
+          {facture.montantTotal - facture.montantPaye > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleReminderWhatsApp}
+              style={{
+                gap: 6,
+                background: 'var(--danger-muted)',
+                color: 'var(--danger)',
+                borderColor: 'rgba(239,68,68,0.2)'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--danger-muted)'; e.currentTarget.style.color = 'var(--danger)'; }}
+            >
+              <MessageCircle size={14} /> Rappel WhatsApp
+            </button>
+          )}
           {/* ── CLOSE BUTTON — always visible ── */}
           <button
             onClick={onClose}
@@ -515,11 +535,11 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr style={{ background: accentColor, color: '#fff', fontSize: 11, textTransform: 'uppercase' }}>
-                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '60px', textAlign: 'center' }}>QTÉ.</th>
-                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000' }}>ARTICLE (DESCRIPTION)</th>
-                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '120px', textAlign: 'right' }}>PRIX UNITAIRE</th>
-                  <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right' }}>TOTAL</th>
+                <tr style={{ background: accentColor, color: '#ffffff', fontSize: 11, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '60px', textAlign: 'center', color: '#ffffff' }}>QTÉ.</th>
+                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000', color: '#ffffff' }}>ARTICLE (DESCRIPTION)</th>
+                  <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '120px', textAlign: 'right', color: '#ffffff' }}>PRIX UNITAIRE</th>
+                  <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', color: '#ffffff' }}>TOTAL</th>
                 </tr>
               </thead>
               <tbody>

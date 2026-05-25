@@ -4,12 +4,16 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { TrendingUp, CheckCircle, TrendingDown, Activity, Truck } from 'lucide-react';
-import { getStats, getVoyages, getStatsVoyage, formatCurrency } from '../../data/store';
+import { getFactures, getDepenses, getClients, getVoyages, formatCurrency, formatDate } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 
 export default function Statistiques() {
-  const [stats, setStats] = useState(null);
-  const [voyageStats, setVoyageStats] = useState([]);
+  const [allFactures, setAllFactures] = useState([]);
+  const [allDepenses, setAllDepenses] = useState([]);
+  const [allClients, setAllClients] = useState([]);
+  const [allVoyages, setAllVoyages] = useState([]);
+  const [filterMois, setFilterMois] = useState('');
+  const [filterAnnee, setFilterAnnee] = useState('');
   const [loading, setLoading] = useState(true);
   const { devise, refresh } = useApp();
 
@@ -17,15 +21,16 @@ export default function Statistiques() {
     const load = async () => {
       setLoading(true);
       try {
-        const s = await getStats();
-        setStats(s);
-        
-        const voyages = await getVoyages();
-        const vStats = await Promise.all(voyages.map(async v => {
-          const vs = await import('../../data/store').then(m => m.getStatsVoyage(v.id));
-          return { ...v, ...vs };
-        }));
-        setVoyageStats(vStats);
+        const [facs, deps, clis, voys] = await Promise.all([
+          getFactures(),
+          getDepenses(),
+          getClients(),
+          getVoyages()
+        ]);
+        setAllFactures(facs);
+        setAllDepenses(deps);
+        setAllClients(clis);
+        setAllVoyages(voys);
       } catch (err) {
         console.error(err);
       }
@@ -34,19 +39,46 @@ export default function Statistiques() {
     load();
   }, [refresh]);
 
-  if (loading || !stats) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
+  if (loading) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
+
+  // Filter lists by month and year dynamically
+  const filteredFactures = allFactures.filter(f => {
+    if (!f.createdAt) return true;
+    const d = new Date(f.createdAt);
+    if (filterMois && d.getMonth() !== parseInt(filterMois)) return false;
+    if (filterAnnee && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    return true;
+  });
+
+  const filteredDepenses = allDepenses.filter(dep => {
+    if (!dep.createdAt) return true;
+    const d = new Date(dep.createdAt);
+    if (filterMois && d.getMonth() !== parseInt(filterMois)) return false;
+    if (filterAnnee && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    return true;
+  });
+
+  // Calculate dynamic stats
+  const totalCA = filteredFactures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
+  const totalPaye = filteredFactures.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+  const totalDepenses = filteredDepenses.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
+  const beneficeNet = totalPaye - totalDepenses;
+
+  const facturesPaye = filteredFactures.filter(f => f.statut === 'paye').length;
+  const facturesPartiel = filteredFactures.filter(f => f.statut === 'partiel').length;
+  const facturesImpaye = filteredFactures.filter(f => f.statut === 'non_paye').length;
 
   const pieData = [
-    { name: 'Payées',     value: stats.facturesPaye,    color: '#22c55e' },
-    { name: 'Partielles', value: stats.facturesPartiel, color: '#f59e0b' },
-    { name: 'Impayées',   value: stats.facturesImpaye,  color: '#ef4444' },
+    { name: 'Payées',     value: facturesPaye,    color: '#22c55e' },
+    { name: 'Partielles', value: facturesPartiel, color: '#f59e0b' },
+    { name: 'Impayées',   value: facturesImpaye,  color: '#ef4444' },
   ].filter(d => d.value > 0);
 
   const kpis = [
-    { label: "Chiffre d'affaires",  val: formatCurrency(stats.totalCA,        devise), Icon: TrendingUp,   color: 'var(--brand)',   bg: 'var(--brand-muted)'   },
-    { label: 'Encaissé',            val: formatCurrency(stats.totalPaye,       devise), Icon: CheckCircle,  color: 'var(--success)', bg: 'var(--success-muted)' },
-    { label: 'Dépenses totales',    val: formatCurrency(stats.totalDepenses,   devise), Icon: TrendingDown, color: 'var(--danger)',  bg: 'var(--danger-muted)'  },
-    { label: 'Bénéfice net',        val: formatCurrency(stats.beneficeNet,     devise), Icon: Activity,     color: 'var(--purple)',  bg: 'var(--purple-muted)'  },
+    { label: "Chiffre d'affaires",  val: formatCurrency(totalCA,        devise), Icon: TrendingUp,   color: 'var(--brand)',   bg: 'var(--brand-muted)'   },
+    { label: 'Encaissé',            val: formatCurrency(totalPaye,       devise), Icon: CheckCircle,  color: 'var(--success)', bg: 'var(--success-muted)' },
+    { label: 'Dépenses totales',    val: formatCurrency(totalDepenses,   devise), Icon: TrendingDown, color: 'var(--danger)',  bg: 'var(--danger-muted)'  },
+    { label: 'Bénéfice net',        val: formatCurrency(beneficeNet,     devise), Icon: Activity,     color: 'var(--purple)',  bg: 'var(--purple-muted)'  },
   ];
 
   const tooltipStyle = {
@@ -58,12 +90,63 @@ export default function Statistiques() {
     labelStyle: { color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12 },
   };
 
+  // Compile monthly chart data
+  const monthly = {};
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0 };
+  }
+  filteredFactures.forEach(f => {
+    if (!f.createdAt) return;
+    const d = new Date(f.createdAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (monthly[key]) {
+      monthly[key].ca += Number(f.montantTotal || 0);
+      monthly[key].paye += Number(f.montantPaye || 0);
+    }
+  });
+
+  const chartMonthlyData = Object.values(monthly);
+
+  // Compile dynamic voyage profitability stats
+  const computedVoyageStats = allVoyages.map(v => {
+    const facs = filteredFactures.filter(f => f.voyageId === v.id);
+    const deps = filteredDepenses.filter(d => d.voyageId === v.id);
+    const totalEncaisse = facs.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+    const totalDepenses = deps.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
+    return {
+      ...v,
+      totalEncaisse,
+      totalDepenses,
+      benefice: totalEncaisse - totalDepenses,
+      nbFactures: facs.length
+    };
+  }).filter(v => v.nbFactures > 0 || v.totalDepenses > 0);
+
   return (
     <div className="page-enter">
       <div className="page-header">
         <div>
           <h1 className="page-title">Statistiques</h1>
           <p className="page-subtitle">Analyse détaillée de votre activité</p>
+        </div>
+        
+        {/* Dynamic Month/Year Filters */}
+        <div className="flex gap-3 flex-wrap">
+          <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
+            <option value="">Tous les mois</option>
+            {['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'].map((m, i) => (
+              <option key={i} value={i}>{m}</option>
+            ))}
+          </select>
+          <select className="form-input form-select" style={{ flex: '1 1 120px' }} value={filterAnnee} onChange={e => setFilterAnnee(e.target.value)}>
+            <option value="">Toutes les années</option>
+            {['2024', '2025', '2026', '2027', '2028', '2029', '2030'].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -95,7 +178,7 @@ export default function Statistiques() {
             <span className="badge badge-brand">6 mois</span>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={stats.monthly} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+            <BarChart data={chartMonthlyData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
               <XAxis dataKey="mois" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
@@ -136,7 +219,7 @@ export default function Statistiques() {
       </div>
 
       {/* Voyage Performance */}
-      {voyageStats.length > 0 && (
+      {computedVoyageStats.length > 0 && (
         <>
           <div className="card" style={{ marginTop: 20 }}>
             <div className="card-header">
@@ -144,7 +227,7 @@ export default function Statistiques() {
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart
-                data={voyageStats.map(v => ({ name: v.nom, Encaissé: v.totalEncaisse, Dépenses: v.totalDepenses, Bénéfice: v.benefice }))}
+                data={computedVoyageStats.map(v => ({ name: v.nom, Encaissé: v.totalEncaisse, Dépenses: v.totalDepenses, Bénéfice: v.benefice }))}
                 margin={{ top: 5, right: 5, left: -10, bottom: 30 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -178,7 +261,7 @@ export default function Statistiques() {
                   </tr>
                 </thead>
                 <tbody>
-                  {voyageStats.map(v => {
+                  {computedVoyageStats.map(v => {
                     const marge = v.totalEncaisse > 0 ? Math.round(v.benefice / v.totalEncaisse * 100) : 0;
                     return (
                       <tr key={v.id}>

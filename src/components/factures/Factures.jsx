@@ -63,7 +63,8 @@ export default function Factures() {
           x.numero?.toLowerCase().includes(s) ||
           x.expediteur?.nom?.toLowerCase().includes(s) ||
           x.expediteur?.prenom?.toLowerCase().includes(s) ||
-          x.destinataire?.nom?.toLowerCase().includes(s)
+          x.destinataire?.nom?.toLowerCase().includes(s) ||
+          x.destinataire?.prenom?.toLowerCase().includes(s)
         );
       }
       if (filterStatut) f = f.filter(x => x.statut === filterStatut);

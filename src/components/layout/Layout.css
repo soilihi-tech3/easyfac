@@ -332,7 +332,6 @@
 .main-content {
   flex: 1;
   padding: 24px;
-  overflow-y: auto;
   width: 100%;
   min-width: 0;
 }

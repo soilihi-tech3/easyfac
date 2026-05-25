@@ -266,48 +266,48 @@ export default function Factures() {
       </div>
 
       {/* Factures KPI Grid */}
-      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
+      <div className="kpi-grid cols-4">
         {/* KPI 1 */}
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--info)', '--kpi-bg': 'var(--info-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--info-muted)', color: 'var(--info)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--info)', '--kpi-bg': 'var(--info-muted)' }}>
+          <div className="kpi-icon-wrap">
             <FileText size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{factures.length}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Nombre de factures</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{factures.length}</div>
+            <div className="kpi-label">Nombre de factures</div>
           </div>
         </div>
 
         {/* KPI 2 */}
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--brand)', '--kpi-bg': 'var(--brand-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--brand-muted)', color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--brand)', '--kpi-bg': 'var(--brand-muted)' }}>
+          <div className="kpi-icon-wrap">
             <TrendingUp size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalCA, devise)}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Chiffre d'affaires</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(totalCA, devise)}</div>
+            <div className="kpi-label">Chiffre d'affaires</div>
           </div>
         </div>
 
         {/* KPI 3 */}
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--success-muted)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)' }}>
+          <div className="kpi-icon-wrap">
             <CheckCircle size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalPaye, devise)}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Montant encaissé</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(totalPaye, devise)}</div>
+            <div className="kpi-label">Montant encaissé</div>
           </div>
         </div>
 
         {/* KPI 4 */}
-        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-muted)', display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div className="kpi-icon-wrap" style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--danger-muted)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-muted)' }}>
+          <div className="kpi-icon-wrap">
             <Clock size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{formatCurrency(totalCA - totalPaye, devise)}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 2 }}>Reste à percevoir</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(totalCA - totalPaye, devise)}</div>
+            <div className="kpi-label">Reste à percevoir</div>
           </div>
         </div>
       </div>

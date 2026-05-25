@@ -1012,30 +1012,55 @@ input:-webkit-autofill:active {
     text-align: left !important;
     margin-top: 4px;
   }
+  .kpi-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
   .kpi-card {
-    flex-direction: column !important;
-    gap: 8px !important;
-    padding: 12px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
   }
   .kpi-icon-wrap {
-    width: 36px !important;
-    height: 36px !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: var(--radius-sm) !important;
+  }
+  .kpi-icon-wrap svg {
+    width: 14px !important;
+    height: 14px !important;
   }
   .kpi-value {
-    font-size: 15px !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
   }
   .kpi-label {
-    font-size: 10px !important;
+    font-size: 9.5px !important;
+    margin-top: 1px !important;
   }
   .kpi-trend {
-    font-size: 9.5px !important;
+    font-size: 9px !important;
+    margin-top: 3px !important;
+    padding: 1px 5px !important;
   }
 }
 
+.kpi-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.kpi-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 /* 🔒 PURE VIEWPORT HORIZONTAL LOCK (PREVENTS MOBILE PAGE WIGGLING/DANCING) */
-html, body, #root, .layout, .main-wrapper, .main-content {
+html, body {
   max-width: 100vw !important;
   overflow-x: hidden !important;
+}
+#root, .layout, .main-wrapper, .main-content {
+  max-width: 100vw !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }

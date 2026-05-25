@@ -22,10 +22,10 @@ export const AppProvider = ({ children }) => {
     };
     init();
 
-    // 🔄 Real-time Background Polling Sync (4.5s)
+    // 🔄 Real-time Background Polling Sync (1.5s)
     const interval = setInterval(() => {
       setRefresh(r => r + 1);
-    }, 4500);
+    }, 1500);
     return () => clearInterval(interval);
   }, []);
 

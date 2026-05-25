@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { getVoyages, API_URL } from '../../data/store';
 import { createPortal } from 'react-dom';
 
@@ -35,6 +36,7 @@ export default function Users() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const { token, user: currentUser } = useAuth();
+  const { refresh } = useApp();
   
   const [form, setForm] = useState({
     nom: '',
@@ -68,7 +70,7 @@ export default function Users() {
       setLoading(false);
     };
     init();
-  }, []);
+  }, [refresh]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -244,37 +246,37 @@ export default function Users() {
       </div>
 
       {/* KPI Stats Widgets */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20, marginBottom: 28 }}>
+      <div className="kpi-grid cols-3">
         {/* KPI 1 */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', background: 'var(--brand-muted)', color: 'var(--brand)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <UsersIcon size={22} strokeWidth={2} />
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--brand)', '--kpi-bg': 'var(--brand-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <UsersIcon size={20} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{totalCollaborators}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 4 }}>Collaborateurs</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{totalCollaborators}</div>
+            <div className="kpi-label">Collaborateurs</div>
           </div>
         </div>
 
         {/* KPI 2 */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', background: 'var(--purple-muted)', color: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Shield size={20} strokeWidth={2} />
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--purple)', '--kpi-bg': 'var(--purple-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <Shield size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{totalAdmins}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 4 }}>Administrateurs</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{totalAdmins}</div>
+            <div className="kpi-label">Administrateurs</div>
           </div>
         </div>
 
         {/* KPI 3 */}
-        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', background: 'var(--success-muted)', color: 'var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <User size={20} strokeWidth={2} />
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <User size={18} strokeWidth={2} />
           </div>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>{totalEmployees}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 4 }}>Employés Restreints</div>
+          <div className="kpi-info">
+            <div className="kpi-value">{totalEmployees}</div>
+            <div className="kpi-label">Employés Restreints</div>
           </div>
         </div>
       </div>

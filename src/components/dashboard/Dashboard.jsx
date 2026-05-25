@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, Legend, BarChart, Bar, Cell, PieChart, Pie
 } from 'recharts';
 import {
-  TrendingUp, CheckCircle, Clock, Activity,
+  TrendingUp, TrendingDown, CheckCircle, Clock, Activity,
   Users, FileText, ArrowRight, Truck
 } from 'lucide-react';
 import { getStats, getFactures, getClients, getVoyages, formatCurrency, formatDate } from '../../data/store';
@@ -23,7 +23,8 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [recentFactures, setRecentFactures] = useState([]);
   const [topClients, setTopClients] = useState([]);
-  const [topVoyages, setTopVoyages] = useState([]);
+  const [top3Best, setTop3Best] = useState([]);
+  const [top3Worst, setTop3Worst] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
@@ -43,7 +44,7 @@ export default function Dashboard() {
 
     const monthly = {};
     const now = new Date();
-    for (let i = 3; i >= 0; i--) {
+    for (let i = 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0 };
@@ -87,16 +88,30 @@ export default function Dashboard() {
           const facs = allFac.filter(f => f.voyageId === v.id);
           const ca = facs.reduce((sum, f) => sum + Number(f.montantTotal || 0), 0);
           const paye = facs.reduce((sum, f) => sum + Number(f.montantPaye || 0), 0);
+          
+          const deps = allDeps.filter(d => d.voyageId === v.id);
+          const expenses = deps.reduce((sum, d) => sum + (Number(d.montant) * Number(d.quantite || 1)), 0);
+          const profit = ca - expenses;
+          
           return {
             name: v.nom,
             ca,
-            paye
+            paye,
+            expenses,
+            profit
           };
-        })
-        .sort((a, b) => b.ca - a.ca)
-        .slice(0, 4);
+        });
 
-        setTopVoyages(voyageStats);
+        const best = [...voyageStats]
+          .sort((a, b) => b.profit - a.profit)
+          .slice(0, 3);
+          
+        const worst = [...voyageStats]
+          .sort((a, b) => a.profit - b.profit)
+          .slice(0, 3);
+
+        setTop3Best(best);
+        setTop3Worst(worst);
 
         if (user?.role === 'employee') {
           // Employee dashboard restricted: only their own invoices, clients, expenses
@@ -255,7 +270,7 @@ export default function Dashboard() {
         <div className="card chart-card">
           <div className="card-header">
             <h3>Évolution du chiffre d'affaires</h3>
-            <span className="badge badge-success">4 derniers mois</span>
+            <span className="badge badge-success">2 derniers mois</span>
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={stats.monthly} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
@@ -350,19 +365,22 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Top 4 Voyages Chart */}
-        <div className="card recent-factures">
+      {/* ─── Voyages Rentabilité Grid ─── */}
+      <div className="voyages-profit-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, marginTop: 24 }}>
+        {/* Top 3 Plus de Bénéfice */}
+        <div className="card">
           <div className="card-header">
-            <h3>Top 4 Voyages les plus profitables</h3>
-            <span className="badge badge-purple" style={{ gap: 4 }}>
-              <Truck size={12} /> Logistique
+            <h3>Top 3 Voyages — Plus de bénéfice</h3>
+            <span className="badge badge-success" style={{ gap: 4 }}>
+              <TrendingUp size={12} /> Plus rentables
             </span>
           </div>
           <div style={{ padding: '10px 0' }}>
-            {topVoyages.length > 0 ? (
+            {top3Best.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topVoyages} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={top3Best} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                   <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
@@ -373,59 +391,59 @@ export default function Dashboard() {
                       fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-md)',
                     }}
                     labelStyle={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12 }}
-                    formatter={(v) => [formatCurrency(v, devise), '']}
+                    formatter={(v) => [formatCurrency(v, devise), 'Bénéfice Net']}
                   />
-                  <Bar dataKey="ca" name="Chiffre d'affaires" fill="#a855f7" radius={[4,4,0,0]} />
-                  <Bar dataKey="paye" name="Encaissé" fill="#22c55e" radius={[4,4,0,0]} />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" iconSize={7} />
+                  <Bar dataKey="profit" name="Bénéfice net" fill="var(--success)" radius={[4,4,0,0]}>
+                    {top3Best.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="empty-state" style={{ padding: '40px 20px' }}>
                 <div className="empty-icon"><Truck size={24} /></div>
-                <div className="empty-title">Aucune donnée de voyage</div>
+                <div className="empty-title">Aucune donnée disponible</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Top Voyages Pie Chart */}
-        <div className="card" style={{ gridColumn: '2' }}>
+        {/* Top 3 Moins de Bénéfice */}
+        <div className="card">
           <div className="card-header">
-            <h3>Répartition CA par Voyage</h3>
+            <h3>Top 3 Voyages — Moins de bénéfice</h3>
+            <span className="badge badge-danger" style={{ gap: 4 }}>
+              <TrendingDown size={12} /> Moins rentables
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 240 }}>
-            {topVoyages.length > 0 ? (
+          <div style={{ padding: '10px 0' }}>
+            {top3Worst.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={topVoyages}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="ca"
-                  >
-                    {topVoyages.map((entry, index) => {
-                      const COLORS = ['#6366f1', '#a855f7', '#22c55e', '#f59e0b'];
-                      return <Cell key={index} fill={COLORS[index % COLORS.length]} stroke="none" />;
-                    })}
-                  </Pie>
+                <BarChart data={top3Worst} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{
                       background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
                       borderRadius: 10, color: 'var(--text-primary)',
                       fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-md)',
                     }}
-                    formatter={(v) => [formatCurrency(v, devise), 'CA']}
+                    labelStyle={{ color: 'var(--text-secondary)', fontWeight: 600, fontSize: 12 }}
+                    formatter={(v) => [formatCurrency(v, devise), 'Bénéfice Net']}
                   />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} iconType="circle" iconSize={6} />
-                </PieChart>
+                  <Bar dataKey="profit" name="Bénéfice net" fill="var(--danger)" radius={[4,4,0,0]}>
+                    {top3Worst.map((entry, index) => (
+                      <Cell key={`cell-worst-${index}`} fill={entry.profit >= 0 ? 'var(--success)' : 'var(--danger)'} />
+                    ))}
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             ) : (
               <div className="empty-state" style={{ padding: '40px 20px' }}>
-                <div className="empty-title">Aucun voyage actif</div>
+                <div className="empty-icon"><Truck size={24} /></div>
+                <div className="empty-title">Aucune donnée disponible</div>
               </div>
             )}
           </div>

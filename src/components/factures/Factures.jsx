@@ -502,7 +502,7 @@ export default function Factures() {
                         ? 'Aucun résultat pour ces filtres.'
                         : 'Créez votre première facture.'}
                     </div>
-                    {!search && !filterStatut && !filterVoyage && !filterPays && (
+                    {(isAdmin || permissions.creerFacture) && !search && !filterStatut && !filterVoyage && !filterPays && (
                       <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouvelle facture</button>
                     )}
                   </div>

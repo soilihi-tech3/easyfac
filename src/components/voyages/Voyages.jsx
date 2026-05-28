@@ -250,7 +250,7 @@ export default function Voyages() {
                     ? 'Aucun voyage ne correspond aux critères de recherche.'
                     : 'Créez votre premier voyage pour commencer à gérer vos trajets.'}
                 </div>
-                {!search && !filterMois && !filterAnnee && (
+                {(isAdmin || permissions.creerVoyage) && !search && !filterMois && !filterAnnee && (
                   <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouveau voyage</button>
                 )}
               </div>

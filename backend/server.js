@@ -12,6 +12,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Register routes
+const whatsappRoutes = require('./routes/whatsapp');
+app.use('/api/whatsapp', whatsappRoutes);
+
 // Create DB connection pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',

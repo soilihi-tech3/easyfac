@@ -1,7 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getParametres, getVoyages, formatCurrency, formatDate } from '../../data/store';
-import { Printer, MessageCircle, X, Bell, FileText } from 'lucide-react';
+import { getParametres, getVoyages, formatCurrency, formatDate, API_URL } from '../../data/store';
+import { Printer, MessageCircle, X, Bell, FileText, Send } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
+import html2pdf from 'html2pdf.js';
 
 const STATUT_MAP   = { paye: 'PAYÉ', partiel: 'PARTIEL', non_paye: 'NON PAYÉ' };
 const STATUT_COLOR = { paye: '#22c55e', partiel: '#f59e0b', non_paye: '#ef4444' };
@@ -10,8 +12,10 @@ const MODE_MAP     = { cash: 'Cash', orange_money: 'Orange Money', wave: 'Wave',
 export default function ReceiptModal({ facture, onClose, devise }) {
   const [params, setParams] = React.useState(null);
   const [voyages, setVoyages] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [showExportGuide, setShowExportGuide] = React.useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showExportGuide, setShowExportGuide] = useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const { toast } = useApp();
   const printRef = useRef();
 
   React.useEffect(() => {
@@ -98,6 +102,50 @@ export default function ReceiptModal({ facture, onClose, devise }) {
     let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
     phone = phone.replace(/\D/g, '');
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, '_blank');
+  };
+
+  const handleWhatsAppDirect = async () => {
+    let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
+    phone = phone.replace(/\D/g, '');
+
+    if (!phone) {
+      toast('Aucun numéro de téléphone défini pour le client.', 'error');
+      return;
+    }
+
+    setSendingWhatsapp(true);
+    try {
+      const element = printRef.current;
+      const opt = {
+        margin:       [0, 0],
+        filename:     `Facture_${facture.numero}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'pt', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Generate PDF as a blob
+      const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
+      
+      const formData = new FormData();
+      formData.append('pdf', pdfBlob, `Facture_${facture.numero}.pdf`);
+      formData.append('phone', phone);
+
+      const res = await fetch(`${API_URL}/api/whatsapp/send-invoice`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de l\'envoi');
+      
+      toast('Facture envoyée avec succès sur WhatsApp !');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Échec de l\'envoi WhatsApp', 'error');
+    } finally {
+      setSendingWhatsapp(false);
+    }
   };
 
   const handleExportPDF = () => {
@@ -1195,6 +1243,15 @@ export default function ReceiptModal({ facture, onClose, devise }) {
               <MessageCircle size={14} /> Rappel WhatsApp
             </button>
           )}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={handleWhatsAppDirect}
+            disabled={sendingWhatsapp}
+            style={{ gap: 6, background: '#25D366', borderColor: '#25D366', color: '#fff' }}
+          >
+            {sendingWhatsapp ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Send size={14} />} 
+            {sendingWhatsapp ? 'Envoi...' : 'Envoyer PDF via WhatsApp'}
+          </button>
           {/* ── CLOSE BUTTON — always visible ── */}
           <button
             onClick={onClose}

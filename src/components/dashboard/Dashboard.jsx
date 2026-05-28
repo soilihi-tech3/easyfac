@@ -127,6 +127,7 @@ export default function Dashboard() {
           const employeeClients = clients.filter(c => clientIds.has(c.id));
 
           const localStats = computeLocalStats(employeeFac, employeeDeps, clients);
+          localStats.totalVoyages = employeeVoyages.length;
           setStats(localStats);
 
           const factures = [...employeeFac]
@@ -144,6 +145,7 @@ export default function Dashboard() {
         } else {
           // Admin dashboard: full site stats (real-time client calculation)
           const localStats = computeLocalStats(allFac, allDeps, clients);
+          localStats.totalVoyages = voyages.length;
           setStats(localStats);
 
           const factures = [...allFac]
@@ -207,6 +209,7 @@ export default function Dashboard() {
   const miniStats = [
     { Icon: Users,       label: 'Clients',    val: stats.totalClients,    color: 'var(--info)' },
     { Icon: FileText,    label: 'Factures',   val: stats.totalFactures,   color: 'var(--brand)' },
+    { Icon: Truck,       label: 'Voyages',    val: stats.totalVoyages || 0, color: 'var(--purple)', iconBg: 'var(--purple-muted)' },
     {
       Icon: CheckCircle, label: 'Payées',     val: stats.facturesPaye,    color: 'var(--success)',
       iconBg: 'var(--success-muted)'

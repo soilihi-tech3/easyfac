@@ -181,7 +181,7 @@ export default function Parametres() {
 
         {/* Logo & Documents */}
         <SectionCard Icon={Image} title="Logo & Documents" iconColor="var(--purple)">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 16 }}>
             {[
               { key: 'logo',      label: 'Logo entreprise' },
               { key: 'signature', label: 'Signature' },
@@ -366,7 +366,7 @@ export default function Parametres() {
 
         {/* Modèle de facture */}
         <SectionCard Icon={FileIcon} title="Modèle de facture" iconColor="var(--info)">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14 }}>
             {[
               { value: 'simple',        label: 'Simple',         desc: 'Design épuré, rapide' },
               { value: 'moderne',       label: 'Moderne',        desc: 'Coloré, contemporain' },

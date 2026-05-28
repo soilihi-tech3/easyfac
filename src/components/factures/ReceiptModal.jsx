@@ -999,30 +999,28 @@ export default function ReceiptModal({ facture, onClose, devise }) {
 
           #receipt-print-area {
             display: block !important;
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 210mm !important;
-            max-width: 210mm !important;
-            height: 296mm !important;
-            max-height: 296mm !important;
+            position: relative !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
             background: #ffffff !important;
             background-color: #ffffff !important;
             box-shadow: none !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             color-scheme: light !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             
             /* Strict single page limits */
-            overflow: hidden !important;
+            overflow: visible !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             page-break-after: avoid !important;
             page-break-before: avoid !important;
             
-            /* Apply general scaling zoom for standard layouts to comfortably fit more articles */
-            zoom: 0.85 !important; 
+            /* Apply 100% scale for native crisp prints */
+            zoom: 1 !important; 
           }
 
           #receipt-print-area > div {

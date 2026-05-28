@@ -254,8 +254,8 @@ export default function Epargnes() {
                 </select>
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-muted" onClick={() => setShowModal(false)}>Annuler</button>
+            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSubmit}>Valider</button>
             </div>
           </div>
@@ -274,8 +274,8 @@ export default function Epargnes() {
             <div className="modal-body">
               Êtes-vous sûr de vouloir supprimer l'épargne <strong>{confirmDelete.libelle}</strong> de <strong>{formatCurrency(confirmDelete.montant, devise)}</strong> ?
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-muted" onClick={() => setConfirmDelete(null)}>Annuler</button>
+            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>Supprimer</button>
             </div>
           </div>

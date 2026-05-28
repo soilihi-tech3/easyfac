@@ -1,4 +1,4 @@
-const CACHE_NAME = 'easyfac-cache-v1';
+const CACHE_NAME = 'easyfac-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -34,9 +34,8 @@ self.addEventListener('fetch', (e) => {
   // Only intercept static files GET requests (exclude API calls)
   if (e.request.method === 'GET' && !e.request.url.includes('/api/')) {
     e.respondWith(
-      caches.match(e.request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
-        return fetch(e.request).then((networkResponse) => {
+      fetch(e.request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -44,10 +43,14 @@ self.addEventListener('fetch', (e) => {
             });
           }
           return networkResponse;
-        }).catch(() => {
-          return caches.match('/index.html');
-        });
-      })
+        })
+        .catch(() => {
+          // Offline fallback: serve from cache if available, otherwise index.html
+          return caches.match(e.request).then((cachedResponse) => {
+            if (cachedResponse) return cachedResponse;
+            return caches.match('/index.html');
+          });
+        })
     );
   }
 });

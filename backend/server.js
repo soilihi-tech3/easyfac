@@ -594,64 +594,71 @@ app.delete('/api/epargnes/:id', async (req, res) => {
 
 // Start the server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
-  console.log(`🚀 EasyFac API Server is running on port ${PORT}`);
-  
-  // Seed Database on startup automatically
-  try {
-    // Safely create table epargnes if it doesn't exist
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS epargnes (
-          id VARCHAR(255) PRIMARY KEY,
-          libelle VARCHAR(255) NOT NULL,
-          montant DECIMAL(15, 2) NOT NULL,
-          voyageId VARCHAR(255),
-          userId VARCHAR(255) DEFAULT NULL,
-          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (voyageId) REFERENCES voyages(id) ON DELETE SET NULL
-        )
-      `);
-      console.log('Table "epargnes" created or verified.');
-    } catch (e) {
-      console.error('Error creating table "epargnes":', e.message);
-    }
 
-    // Safely add columns if they do not exist
+// Démarre le serveur uniquement si on n'est pas sur Vercel
+if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
+  app.listen(PORT, async () => {
+    console.log(`🚀 EasyFac API Server is running on port ${PORT}`);
+    
+    // Seed Database on startup automatically
     try {
-      await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
-      console.log('Column "telephone" added to "users" table.');
-    } catch (e) {}
-    try {
-      await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
-      console.log('Column "active" added to "users" table.');
-    } catch (e) {}
-
-    const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
-      const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
-      if (existing[0].count === 0) {
-        const hash = await bcrypt.hash(password, 10);
-        await pool.query(
-          'INSERT INTO users (id, nom, prenom, email, password, role, permissions) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [uuidv4(), nom, prenom, email, hash, role, permissions ? JSON.stringify(permissions) : null]
-        );
-        console.log(`Default user created: ${email}`);
+      // Safely create table epargnes if it doesn't exist
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS epargnes (
+            id VARCHAR(255) PRIMARY KEY,
+            libelle VARCHAR(255) NOT NULL,
+            montant DECIMAL(15, 2) NOT NULL,
+            voyageId VARCHAR(255),
+            userId VARCHAR(255) DEFAULT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (voyageId) REFERENCES voyages(id) ON DELETE SET NULL
+          )
+        `);
+        console.log('Table "epargnes" created or verified.');
+      } catch (e) {
+        console.error('Error creating table "epargnes":', e.message);
       }
-    };
 
-    await seedUser('Admin', 'Super', 'admin@easyfac.com', 'Passer123', 'admin');
-    await seedUser('Faruck', 'Admin', 'faruck@gmail.com', 'Passer123', 'admin');
-    await seedUser('Faruck', 'Admin', 'faruck@gmil.com', 'Passer123', 'admin');
+      // Safely add columns if they do not exist
+      try {
+        await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
+        console.log('Column "telephone" added to "users" table.');
+      } catch (e) {}
+      try {
+        await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
+        console.log('Column "active" added to "users" table.');
+      } catch (e) {}
 
-    const empPermissions = {
-      voirFactures: true, creerFacture: true, modifierFacture: true, supprimerFacture: true,
-      voirVoyages: true, creerVoyage: true, modifierVoyage: true, supprimerVoyage: true,
-      voirDepenses: true, creerDepense: true, modifierDepense: true, supprimerDepense: true,
-      voirClients: true, creerClient: true, modifierClient: true, supprimerClient: true
-    };
-    await seedUser('Faruck', 'Employé', 'faruck-employe@gmail.com', 'Passer123', 'employee', empPermissions);
-    console.log('✅ Database startup seeding completed successfully!');
-  } catch (err) {
-    console.error('❌ Failed to seed default users on startup:', err.message);
-  }
-});
+      const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
+        const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
+        if (existing[0].count === 0) {
+          const hash = await bcrypt.hash(password, 10);
+          await pool.query(
+            'INSERT INTO users (id, nom, prenom, email, password, role, permissions) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [uuidv4(), nom, prenom, email, hash, role, permissions ? JSON.stringify(permissions) : null]
+          );
+          console.log(`Default user created: ${email}`);
+        }
+      };
+
+      await seedUser('Admin', 'Super', 'admin@easyfac.com', 'Passer123', 'admin');
+      await seedUser('Faruck', 'Admin', 'faruck@gmail.com', 'Passer123', 'admin');
+      await seedUser('Faruck', 'Admin', 'faruck@gmil.com', 'Passer123', 'admin');
+
+      const empPermissions = {
+        voirFactures: true, creerFacture: true, modifierFacture: true, supprimerFacture: true,
+        voirVoyages: true, creerVoyage: true, modifierVoyage: true, supprimerVoyage: true,
+        voirDepenses: true, creerDepense: true, modifierDepense: true, supprimerDepense: true,
+        voirClients: true, creerClient: true, modifierClient: true, supprimerClient: true
+      };
+      await seedUser('Faruck', 'Employé', 'faruck-employe@gmail.com', 'Passer123', 'employee', empPermissions);
+      console.log('✅ Database startup seeding completed successfully!');
+    } catch (err) {
+      console.error('❌ Failed to seed default users on startup:', err.message);
+    }
+  });
+}
+
+// Export de l'application pour Vercel (Serverless Functions)
+module.exports = app;

@@ -37,7 +37,12 @@ export default function Parametres() {
     let interval;
     const fetchWaStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/whatsapp/status`);
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/api/whatsapp/status`, {
+          headers: {
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           setWaStatus(data);
@@ -102,7 +107,13 @@ export default function Parametres() {
 
   const handleWaLogout = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/whatsapp/logout`, { method: 'POST' });
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/whatsapp/logout`, { 
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
       if (res.ok) {
         toast('Déconnecté de WhatsApp avec succès');
         setWaStatus({ status: 'LOADING', qr: null, phone: null });

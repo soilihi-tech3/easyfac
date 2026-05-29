@@ -248,9 +248,13 @@ export default function Factures() {
 
     toast("Envoi du rappel WhatsApp...");
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/whatsapp/send-message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ phone, message: lines })
       });
       if (res.ok) {

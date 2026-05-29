@@ -109,9 +109,13 @@ export default function ReceiptModal({ facture, onClose, devise }) {
 
     toast("Envoi du rappel WhatsApp...");
     try {
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/whatsapp/send-message`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ phone, message: lines })
       });
       if (res.ok) {
@@ -160,8 +164,12 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       formData.append('pdf', pdfBlob, `Facture_${facture.numero}.pdf`);
       formData.append('phone', phone);
 
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/whatsapp/send-invoice`, {
         method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: formData
       });
 

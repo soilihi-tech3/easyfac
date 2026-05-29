@@ -424,8 +424,54 @@ export default function Parametres() {
                 style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '10px 12px', lineHeight: 1.5 }}
               />
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                Personnalisez la formule de politesse envoyée en bas de votre rappel WhatsApp automatique. Les détails de la facture (numéro, nom, montant total, déjà payé, reste à payer, échéance) restent insérés au-dessus automatiquement.
+                Personnalisez la formule de politesse envoyée en bas de vos rappels WhatsApp (manuels et automatiques). Les détails de la facture (numéro, nom, montant total, déjà payé, reste à payer, échéance) restent insérés au-dessus automatiquement de manière identique.
               </span>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 18, marginTop: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Activer les rappels automatiques</h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                    Envoyer automatiquement les messages aux clients dont la date d'échéance est dépassée.
+                  </p>
+                </div>
+                <label className="switch" style={{ position: 'relative', display: 'inline-block', width: 46, height: 26, flexShrink: 0 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={!!params.config?.rappelAutomatique} 
+                    onChange={e => updateConf('rappelAutomatique', e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: params.config?.rappelAutomatique ? '#25d366' : 'var(--border-default)',
+                    transition: '0.3s', borderRadius: 26
+                  }}>
+                    <span style={{
+                      position: 'absolute', content: '""', height: 20, width: 20, left: 3, bottom: 3,
+                      backgroundColor: '#fff', transition: '0.3s', borderRadius: '50%',
+                      transform: params.config?.rappelAutomatique ? 'translateX(20px)' : 'none',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {params.config?.rappelAutomatique && (
+                <div className="form-group" style={{ maxWidth: 200 }}>
+                  <label className="form-label">Heure d'envoi des rappels</label>
+                  <input 
+                    type="time" 
+                    className="form-input" 
+                    value={params.config?.rappelHeure || '08:00'} 
+                    onChange={e => updateConf('rappelHeure', e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                    Heure locale à laquelle le robot enverra les messages.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </SectionCard>

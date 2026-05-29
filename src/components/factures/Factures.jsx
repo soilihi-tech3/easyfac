@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache } from '../../data/store';
+import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
 import FactureModal from './FactureModal';
@@ -213,7 +213,7 @@ export default function Factures() {
     }
   };
 
-  const handleReminderWhatsApp = (facture) => {
+  const handleReminderWhatsApp = async (facture) => {
     const total = facture.montantTotal;
     const paye = facture.montantPaye;
     const reste = total - paye;
@@ -240,7 +240,36 @@ export default function Factures() {
     
     let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
     phone = phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines)}`, '_blank');
+
+    if (!phone) {
+      toast("Le client n'a pas de numéro de téléphone enregistré.", "error");
+      return;
+    }
+
+    toast("Envoi du rappel WhatsApp...");
+    try {
+      const res = await fetch(`${API_URL}/api/whatsapp/send-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: lines })
+      });
+      if (res.ok) {
+        toast('Rappel WhatsApp envoyé directement avec succès !', 'success');
+      } else {
+        const errData = await res.json();
+        const errMsg = errData.error || '';
+        if (errMsg.includes("n'est pas connecté") || errMsg.includes("Veuillez scanner") || errMsg.includes("connected")) {
+          toast("Veuillez d'abord connecter votre compte WhatsApp dans les Paramètres.", "error");
+        } else if (errMsg.includes("LID") || errMsg.includes("No LID") || errMsg.includes("number")) {
+          toast("Erreur : Le numéro de téléphone est incorrect ou n'est pas enregistré sur WhatsApp.", "error");
+        } else {
+          toast(`Échec de l'envoi : ${errMsg}`, "error");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      toast("Impossible de joindre le serveur backend.", "error");
+    }
   };
 
   const getVoyageName = (id) => voyages.find(v => v.id === id)?.nom || '—';

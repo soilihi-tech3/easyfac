@@ -47,4 +47,21 @@ router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
   }
 });
 
+router.post('/send-message', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: "Numéro de téléphone ou message manquant." });
+    }
+    await whatsappClient.sendText(phone, message);
+    res.json({ success: true, message: "Message envoyé avec succès !" });
+  } catch (error) {
+    console.error("WhatsApp Error:", error.message);
+    res.status(500).json({ 
+      error: `Erreur d'envoi: ${error.message}`, 
+      details: error.message 
+    });
+  }
+});
+
 module.exports = router;

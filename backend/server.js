@@ -107,8 +107,8 @@ app.post('/api/auth/login', async (req, res) => {
 
 // JWT Middleware
 const authMiddleware = (req, res, next) => {
-  // Allow status endpoint
-  if (req.path === '/status') return next();
+  // Allow status and cron/reminders endpoints without JWT
+  if (req.path === '/status' || req.path === '/cron/reminders') return next();
   
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'Token manquant' });
@@ -383,6 +383,10 @@ app.put('/api/parametres', async (req, res) => {
       'UPDATE settings SET entreprise = ?, config = ? WHERE id = 1',
       [JSON.stringify(entreprise), JSON.stringify(config)]
     );
+    
+    // Re-initialize dynamic cron with new settings immediately!
+    await initReminderCron();
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -392,10 +396,44 @@ app.put('/api/parametres', async (req, res) => {
 // --- FACTURES (Complex: nested articles) ---
 // --- CRON JOBS ---
 const cron = require('node-cron');
+let reminderCronJob = null;
 
 async function runReminders() {
   console.log('Running daily WhatsApp reminders...');
   const whatsappClient = require('./services/whatsappClient');
+
+  // Load custom configuration from settings
+  let cordialText = "Cordialement.";
+  let isEnabled = false;
+  let devise = "FCFA";
+  let entrepriseName = "EASYFAC";
+  try {
+    const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
+    if (settingsRows.length > 0) {
+      const settings = settingsRows[0];
+      const config = typeof settings.config === 'string' ? JSON.parse(settings.config) : settings.config;
+      const entreprise = typeof settings.entreprise === 'string' ? JSON.parse(settings.entreprise) : settings.entreprise;
+      if (config) {
+        isEnabled = !!config.rappelAutomatique;
+        if (config.rappelCordial) {
+          cordialText = config.rappelCordial;
+        }
+        if (config.devise) {
+          devise = config.devise;
+        }
+      }
+      if (entreprise && entreprise.nom) {
+        entrepriseName = entreprise.nom;
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching settings for reminders:", err.message);
+  }
+
+  if (!isEnabled) {
+    console.log("Automatic reminders are disabled in settings. Skipping execution.");
+    return { processed: 0, sent: 0, message: "Automatic reminders are disabled in settings." };
+  }
 
   const [factures] = await pool.query(`
     SELECT * FROM factures 
@@ -424,7 +462,31 @@ async function runReminders() {
     
     const reste = facture.montantTotal - facture.montantPaye;
     
-    const messageText = `Bonjour ${prenomClient} ${nomClient},\n\nCeci est un rappel automatique concernant votre facture N°${facture.numero}.\nElle est arrivée à échéance. Le montant restant à payer est de ${reste}.\nMerci de régulariser cette situation au plus vite.\n\nCordialement.`;
+    let dateStr = "immédiatement";
+    if (facture.dateLimite) {
+      const d = new Date(facture.dateLimite);
+      const months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+      dateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    const totalFormatted = `${Number(facture.montantTotal).toLocaleString('fr-FR')} ${devise}`;
+    const payeFormatted = `${Number(facture.montantPaye).toLocaleString('fr-FR')} ${devise}`;
+    const resteFormatted = `${Number(reste).toLocaleString('fr-FR')} ${devise}`;
+
+    const messageText = [
+      `*Rappel de paiement — Facture ${facture.numero}*`,
+      `Bonjour ${prenomClient} ${nomClient},`,
+      ``,
+      `Nous vous contactons pour le suivi de règlement de votre facture *${facture.numero}* :`,
+      `*Montant Total :* ${totalFormatted}`,
+      `*Déjà Payé :* ${payeFormatted}`,
+      `*Reste à Payer :* *${resteFormatted}*`,
+      `*Date d'échéance :* *${dateStr}*`,
+      ``,
+      cordialText,
+      ``,
+      `*${entrepriseName}*`
+    ].join('\n');
 
     try {
       await whatsappClient.sendText(phone, messageText);
@@ -438,14 +500,43 @@ async function runReminders() {
   return { processed: factures.length, sent: sentCount };
 }
 
-// Planifie l'envoi automatique tous les jours à 08:00 du matin
-cron.schedule('0 8 * * *', async () => {
-  try {
-    await runReminders();
-  } catch (err) {
-    console.error("Erreur lors de l'exécution automatique du cron:", err);
+async function initReminderCron() {
+  console.log('Initializing dynamic WhatsApp reminder cron job...');
+  if (reminderCronJob) {
+    reminderCronJob.stop();
+    reminderCronJob = null;
   }
-});
+
+  try {
+    const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
+    if (settingsRows.length > 0) {
+      const settings = settingsRows[0];
+      const config = typeof settings.config === 'string' ? JSON.parse(settings.config) : settings.config;
+
+      if (config && config.rappelAutomatique) {
+        const timeStr = config.rappelHeure || '08:00';
+        const [hourStr, minStr] = timeStr.split(':');
+        const hour = parseInt(hourStr, 10) || 8;
+        const minute = parseInt(minStr, 10) || 0;
+
+        const cronExpr = `${minute} ${hour} * * *`;
+        console.log(`Scheduling automatic reminders at ${timeStr} local time (cron: "${cronExpr}")`);
+
+        reminderCronJob = cron.schedule(cronExpr, async () => {
+          try {
+            await runReminders();
+          } catch (err) {
+            console.error("Erreur lors de l'exécution automatique du cron:", err);
+          }
+        });
+      } else {
+        console.log('Automatic reminders are disabled in settings.');
+      }
+    }
+  } catch (err) {
+    console.error('Error during initReminderCron:', err.message);
+  }
+}
 
 app.get('/api/cron/reminders', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -708,6 +799,10 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
         await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
         console.log('Column "active" added to "users" table.');
       } catch (e) {}
+      try {
+        await pool.query('ALTER TABLE factures ADD COLUMN rappelAutomatiqueSent TINYINT DEFAULT 0');
+        console.log('Column "rappelAutomatiqueSent" added to "factures" table.');
+      } catch (e) {}
 
       const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
         const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
@@ -733,8 +828,11 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
       };
       await seedUser('Faruck', 'Employé', 'faruck-employe@gmail.com', 'Passer123', 'employee', empPermissions);
       console.log('✅ Database startup seeding completed successfully!');
+      
+      // Initialize dynamic cron scheduler at startup
+      await initReminderCron();
     } catch (err) {
-      console.error('❌ Failed to seed default users on startup:', err.message);
+      console.error('❌ Failed to seed default users or init cron on startup:', err.message);
     }
   });
 }

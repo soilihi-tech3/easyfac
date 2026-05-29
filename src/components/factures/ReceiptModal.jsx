@@ -984,6 +984,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           gap: 8px !important;
           align-items: center !important;
           flex-shrink: 0 !important;
+          flex-wrap: wrap !important;
         }
 
         @media print {
@@ -1125,12 +1126,15 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           .receipt-actions-row {
             flex: 1 1 auto !important;
             width: 100% !important;
-            justify-content: flex-end !important;
+            justify-content: flex-start !important;
             gap: 6px !important;
+            flex-wrap: wrap !important;
           }
           .receipt-actions-row button {
             padding: 8px 10px !important;
             font-size: 11px !important;
+            flex: 1 1 auto !important;
+            justify-content: center !important;
           }
           #receipt-print-area {
             font-size: 11px !important;

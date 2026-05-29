@@ -12,6 +12,14 @@ const MODES_PAIEMENT = [
 
 const emptyArticle = () => ({ id: uuid(), nom: '', quantite: 1, prixUnitaire: 0, total: 0 });
 
+const extractPhoneParts = (phone) => {
+  if (!phone) return { prefix: '+221', number: '' };
+  if (phone.startsWith('+221')) return { prefix: '+221', number: phone.substring(4) };
+  if (phone.startsWith('+269')) return { prefix: '+269', number: phone.substring(4) };
+  if (phone.startsWith('+33')) return { prefix: '+33', number: phone.substring(3) };
+  return { prefix: '+221', number: phone };
+};
+
 import { createPortal } from 'react-dom';
 
 export default function FactureModal({ facture, onClose, onSave, prixKg, devise }) {
@@ -315,7 +323,25 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                 </div>
                 <div className="form-group">
                   <label className="form-label">Téléphone</label>
-                  <input className="form-input" value={form.expediteur?.telephone || ''} onChange={e => updateExp('telephone', e.target.value)} />
+                  <div style={{ display: 'flex' }}>
+                    <select 
+                      className="form-input" 
+                      style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                      value={extractPhoneParts(form.expediteur?.telephone).prefix}
+                      onChange={e => updateExp('telephone', e.target.value + extractPhoneParts(form.expediteur?.telephone).number)}
+                    >
+                      <option value="+221">+221</option>
+                      <option value="+269">+269</option>
+                      <option value="+33">+33</option>
+                    </select>
+                    <input 
+                      className="form-input" 
+                      style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
+                      value={extractPhoneParts(form.expediteur?.telephone).number} 
+                      onChange={e => updateExp('telephone', extractPhoneParts(form.expediteur?.telephone).prefix + e.target.value.replace(/\D/g, ''))} 
+                      placeholder="Numéro sans le code"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -335,7 +361,25 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                 </div>
                 <div className="form-group">
                   <label className="form-label">Téléphone</label>
-                  <input className="form-input" value={form.destinataire?.telephone || ''} onChange={e => updateDest('telephone', e.target.value)} />
+                  <div style={{ display: 'flex' }}>
+                    <select 
+                      className="form-input" 
+                      style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                      value={extractPhoneParts(form.destinataire?.telephone).prefix}
+                      onChange={e => updateDest('telephone', e.target.value + extractPhoneParts(form.destinataire?.telephone).number)}
+                    >
+                      <option value="+221">+221</option>
+                      <option value="+269">+269</option>
+                      <option value="+33">+33</option>
+                    </select>
+                    <input 
+                      className="form-input" 
+                      style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
+                      value={extractPhoneParts(form.destinataire?.telephone).number} 
+                      onChange={e => updateDest('telephone', extractPhoneParts(form.destinataire?.telephone).prefix + e.target.value.replace(/\D/g, ''))} 
+                      placeholder="Numéro sans le code"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

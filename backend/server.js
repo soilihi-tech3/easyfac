@@ -391,6 +391,62 @@ app.put('/api/parametres', async (req, res) => {
 
 // --- FACTURES (Complex: nested articles) ---
 // --- CRON JOBS ---
+const cron = require('node-cron');
+
+async function runReminders() {
+  console.log('Running daily WhatsApp reminders...');
+  const whatsappClient = require('./services/whatsappClient');
+
+  const [factures] = await pool.query(`
+    SELECT * FROM factures 
+    WHERE montantPaye < montantTotal 
+    AND dateLimite IS NOT NULL 
+    AND dateLimite < CURRENT_DATE() 
+    AND rappelAutomatiqueSent = 0
+  `);
+
+  if (factures.length === 0) return { processed: 0, sent: 0, message: "No reminders to send" };
+
+  const [clients] = await pool.query('SELECT * FROM clients');
+  const clientMap = {};
+  clients.forEach(c => clientMap[c.id] = c);
+
+  let sentCount = 0;
+
+  for (const facture of factures) {
+    const expediteur = clientMap[facture.expediteurId];
+    const destinataire = clientMap[facture.destinataireId];
+    const phone = expediteur?.telephone || destinataire?.telephone;
+    const nomClient = expediteur?.nom || destinataire?.nom || '';
+    const prenomClient = expediteur?.prenom || destinataire?.prenom || '';
+    
+    if (!phone) continue;
+    
+    const reste = facture.montantTotal - facture.montantPaye;
+    
+    const messageText = `Bonjour ${prenomClient} ${nomClient},\n\nCeci est un rappel automatique concernant votre facture N°${facture.numero}.\nElle est arrivée à échéance. Le montant restant à payer est de ${reste}.\nMerci de régulariser cette situation au plus vite.\n\nCordialement.`;
+
+    try {
+      await whatsappClient.sendText(phone, messageText);
+      await pool.query('UPDATE factures SET rappelAutomatiqueSent = 1 WHERE id = ?', [facture.id]);
+      sentCount++;
+    } catch (err) {
+      console.error(`Erreur d'envoi cron pour la facture ${facture.id}:`, err.message);
+    }
+  }
+  console.log(`Daily WhatsApp reminders finished. Processed: ${factures.length}, Sent: ${sentCount}`);
+  return { processed: factures.length, sent: sentCount };
+}
+
+// Planifie l'envoi automatique tous les jours à 08:00 du matin
+cron.schedule('0 8 * * *', async () => {
+  try {
+    await runReminders();
+  } catch (err) {
+    console.error("Erreur lors de l'exécution automatique du cron:", err);
+  }
+});
+
 app.get('/api/cron/reminders', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -398,64 +454,8 @@ app.get('/api/cron/reminders', async (req, res) => {
   }
 
   try {
-    const token = process.env.WHATSAPP_TOKEN;
-    const phoneId = process.env.WHATSAPP_PHONE_ID;
-    if (!token || !phoneId) return res.status(500).json({ error: "Missing WhatsApp config" });
-
-    const [factures] = await pool.query(`
-      SELECT * FROM factures 
-      WHERE montantPaye < montantTotal 
-      AND dateLimite IS NOT NULL 
-      AND dateLimite < CURRENT_DATE() 
-      AND rappelAutomatiqueSent = 0
-    `);
-
-    if (factures.length === 0) return res.json({ success: true, sent: 0, message: "No reminders to send" });
-
-    const [clients] = await pool.query('SELECT * FROM clients');
-    const clientMap = {};
-    clients.forEach(c => clientMap[c.id] = c);
-
-    let sentCount = 0;
-    const axios = require('axios');
-
-    for (const facture of factures) {
-      const expediteur = clientMap[facture.expediteurId];
-      const destinataire = clientMap[facture.destinataireId];
-      const phone = expediteur?.telephone || destinataire?.telephone;
-      const nomClient = expediteur?.nom || destinataire?.nom || '';
-      const prenomClient = expediteur?.prenom || destinataire?.prenom || '';
-      
-      if (!phone) continue;
-      
-      const cleanPhone = phone.replace(/\D/g, '');
-      const reste = facture.montantTotal - facture.montantPaye;
-      
-      // En mode développement, vous pouvez envoyer ce message libre uniquement vers un numéro test ou si le client vous a répondu dans les dernières 24h.
-      // En mode production, il faudra utiliser un "template" autorisé par Meta.
-      const messageText = `Bonjour ${prenomClient} ${nomClient},\n\nCeci est un rappel automatique concernant votre facture N°${facture.numero}.\nElle est arrivée à échéance. Le montant restant à payer est de ${reste}.\nMerci de régulariser cette situation au plus vite.\n\nCordialement.`;
-
-      try {
-        await axios.post(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
-          messaging_product: "whatsapp",
-          to: cleanPhone,
-          type: "text",
-          text: { body: messageText }
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
-        });
-        
-        await pool.query('UPDATE factures SET rappelAutomatiqueSent = 1 WHERE id = ?', [facture.id]);
-        sentCount++;
-      } catch (err) {
-        console.error(`Erreur d'envoi cron pour la facture ${facture.id}:`, err?.response?.data || err.message);
-      }
-    }
-
-    res.json({ success: true, processed: factures.length, sent: sentCount });
+    const result = await runReminders();
+    res.json({ success: true, ...result });
   } catch (err) {
     console.error("Cron Error:", err);
     res.status(500).json({ error: 'Cron job failed', details: err.message });

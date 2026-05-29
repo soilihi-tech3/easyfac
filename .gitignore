@@ -36,3 +36,7 @@ yarn-error.log*
 *.sln
 *.sw?
 Thumbs.db
+
+# WhatsApp Web JS Session
+backend/.wwebjs_auth/
+backend/.wwebjs_cache/

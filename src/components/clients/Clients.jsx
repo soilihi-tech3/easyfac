@@ -4,6 +4,14 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Users, Search, Plus, Edit2, Trash2, Phone, MapPin, X, Check } from 'lucide-react';
 
+const extractPhoneParts = (phone) => {
+  if (!phone) return { prefix: '+221', number: '' };
+  if (phone.startsWith('+221')) return { prefix: '+221', number: phone.substring(4) };
+  if (phone.startsWith('+269')) return { prefix: '+269', number: phone.substring(4) };
+  if (phone.startsWith('+33')) return { prefix: '+33', number: phone.substring(3) };
+  return { prefix: '+221', number: phone };
+};
+
 const emptyForm = { nom: '', prenom: '', telephone: '', adresse: '' };
 
 export default function Clients() {
@@ -237,7 +245,25 @@ export default function Clients() {
               </div>
               <div className="form-group">
                 <label className="form-label">Téléphone *</label>
-                <input className="form-input" value={form.telephone} onChange={e => setForm(f => ({ ...f, telephone: e.target.value }))} placeholder="77 123 45 67" />
+                <div style={{ display: 'flex' }}>
+                  <select 
+                    className="form-input" 
+                    style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                    value={extractPhoneParts(form.telephone).prefix}
+                    onChange={e => setForm(f => ({ ...f, telephone: e.target.value + extractPhoneParts(form.telephone).number }))}
+                  >
+                    <option value="+221">+221</option>
+                    <option value="+269">+269</option>
+                    <option value="+33">+33</option>
+                  </select>
+                  <input 
+                    className="form-input" 
+                    style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
+                    value={extractPhoneParts(form.telephone).number} 
+                    onChange={e => setForm(f => ({ ...f, telephone: extractPhoneParts(form.telephone).prefix + e.target.value.replace(/\D/g, '') }))} 
+                    placeholder="Numéro sans le code" 
+                  />
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Adresse</label>

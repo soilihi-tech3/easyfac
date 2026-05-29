@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getParametres, updateParametres, getVoyages } from '../../data/store';
+import { getParametres, updateParametres, getVoyages, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import {
   Save, Building2, Image, Settings2, FileText as FileIcon,
@@ -30,7 +30,27 @@ export default function Parametres() {
   const [voyages, setVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null, phone: null });
   const { toast, refreshData, toggleTheme, isDark } = useApp();
+
+  useEffect(() => {
+    let interval;
+    const fetchWaStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/whatsapp/status`);
+        if (res.ok) {
+          const data = await res.json();
+          setWaStatus(data);
+        }
+      } catch (err) {
+        console.error('Erreur WhatsApp status:', err);
+      }
+    };
+
+    fetchWaStatus();
+    interval = setInterval(fetchWaStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -77,6 +97,18 @@ export default function Parametres() {
     if (window.confirm('Réinitialiser toutes les données ? Cette action est irréversible.')) {
       localStorage.clear();
       window.location.reload();
+    }
+  };
+
+  const handleWaLogout = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/whatsapp/logout`, { method: 'POST' });
+      if (res.ok) {
+        toast('Déconnecté de WhatsApp avec succès');
+        setWaStatus({ status: 'LOADING', qr: null, phone: null });
+      }
+    } catch (err) {
+      toast('Erreur lors de la déconnexion WhatsApp', 'error');
     }
   };
 
@@ -348,19 +380,53 @@ export default function Parametres() {
 
         {/* WhatsApp & Rappels */}
         <SectionCard Icon={MessageCircle} title="WhatsApp & Rappels" iconColor="#25d366">
-          <div className="form-group" style={{ gridColumn: 'span 2' }}>
-            <label className="form-label">Message de fin / Formule de politesse (Rappel WhatsApp)</label>
-            <textarea
-              className="form-input"
-              rows={4}
-              value={params.config?.rappelCordial || ''}
-              onChange={e => updateConf('rappelCordial', e.target.value)}
-              placeholder="Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.&#10;Nous restons à votre entière disposition.&#10;&#10;Cordialement,"
-              style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '10px 12px', lineHeight: 1.5 }}
-            />
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-              Personnalisez la formule de politesse envoyée en bas de votre rappel WhatsApp automatique. Les détails de la facture (numéro, nom, montant total, déjà payé, reste à payer, échéance) restent insérés au-dessus automatiquement.
-            </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
+            {/* Status Section */}
+            <div style={{ padding: 16, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)' }}>
+              <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>État de la connexion WhatsApp</h4>
+              
+              {waStatus.status === 'LOADING' && <div>Chargement du statut...</div>}
+              
+              {waStatus.status === 'CONNECTED' && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div style={{ color: '#25d366', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle size={16} /> Connecté
+                    </div>
+                    {waStatus.phone && <div style={{ fontSize: 12, marginTop: 4 }}>Numéro : {waStatus.phone}</div>}
+                  </div>
+                  <button className="btn btn-secondary" onClick={handleWaLogout}>Déconnecter</button>
+                </div>
+              )}
+
+              {waStatus.status === 'QR_READY' && waStatus.qr && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, marginBottom: 10, color: 'var(--warning)' }}>
+                    Non connecté. Scannez ce QR code avec l'application WhatsApp de votre téléphone (Appareils connectés).
+                  </div>
+                  <img src={waStatus.qr} alt="WhatsApp QR Code" style={{ maxWidth: 200, margin: '0 auto', display: 'block', border: '1px solid var(--border-default)', borderRadius: 8 }} />
+                </div>
+              )}
+
+              {waStatus.status === 'INITIALIZING' && (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Initialisation du client WhatsApp... (patientez)</div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Message de fin / Formule de politesse (Rappel WhatsApp)</label>
+              <textarea
+                className="form-input"
+                rows={4}
+                value={params.config?.rappelCordial || ''}
+                onChange={e => updateConf('rappelCordial', e.target.value)}
+                placeholder="Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.&#10;Nous restons à votre entière disposition.&#10;&#10;Cordialement,"
+                style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '10px 12px', lineHeight: 1.5 }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Personnalisez la formule de politesse envoyée en bas de votre rappel WhatsApp automatique. Les détails de la facture (numéro, nom, montant total, déjà payé, reste à payer, échéance) restent insérés au-dessus automatiquement.
+              </span>
+            </div>
           </div>
         </SectionCard>
 

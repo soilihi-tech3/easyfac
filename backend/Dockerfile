@@ -15,17 +15,23 @@ RUN apt-get update \
       --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /usr/src/app
+# Create a non-root user with UID 1000 for Hugging Face Spaces compatibility
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
+
+# Set working directory inside user's home
+WORKDIR $HOME/app
 
 # Install dependencies
-COPY package*.json ./
+COPY --chown=user:user package*.json ./
 RUN npm install
 
-# Copy source code
-COPY . .
+# Copy source code with correct ownership
+COPY --chown=user:user . .
 
-# Expose port
+# Expose port (3001 by default, Hugging Face maps port 7860 dynamically via the PORT env variable)
 EXPOSE 3001
 
 # Command to run

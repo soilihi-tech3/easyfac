@@ -1,5 +1,10 @@
 FROM node:20-slim
 
+# Skip Puppeteer downloading its own Chromium copy to speed up Render builds
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Map path to system installed Google Chrome stable
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
 # Install latest chrome dev package and fonts to support major charsets
 RUN apt-get update \
     && apt-get install -y wget gnupg \

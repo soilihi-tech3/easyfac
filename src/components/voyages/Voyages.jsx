@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { getVoyages, addVoyage, updateVoyage, deleteVoyage, getStatsVoyage, formatCurrency, formatDate } from '../../data/store';
+import { getVoyages, addVoyage, updateVoyage, deleteVoyage, getStatsVoyage, formatCurrency, formatDate, getVoyagesCache, getFacturesCache, getDepensesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { Truck, Plus, Edit2, Trash2, Calendar, X, Check, TrendingUp, TrendingDown, DollarSign, FileText, Search } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -8,10 +6,15 @@ import { useAuth } from '../../context/AuthContext';
 const emptyForm = { nom: '', dateDepart: '', description: '' };
 
 export default function Voyages() {
-  const [voyages, setVoyages] = useState([]);
-  const [factures, setFactures] = useState([]);
-  const [depenses, setDepenses] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [voyages, setVoyages] = useState(() => {
+    const cached = getVoyagesCache();
+    return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
+  const [factures, setFactures] = useState(() => getFacturesCache());
+  const [depenses, setDepenses] = useState(() => getDepensesCache());
+  const [loading, setLoading] = useState(() => {
+    return getVoyagesCache().length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
@@ -34,7 +37,8 @@ export default function Voyages() {
   }
 
   const load = async () => {
-    if (isFirstLoad) setLoading(true);
+    const hasCache = getVoyagesCache().length > 0;
+    if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allVoyages, allFactures, allDepenses] = await Promise.all([
         getVoyages(),

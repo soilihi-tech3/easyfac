@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { getEpargnes, addEpargne, updateEpargne, deleteEpargne, getVoyages, getParametres, formatCurrency, formatDate } from '../../data/store';
+import { getEpargnes, addEpargne, updateEpargne, deleteEpargne, getVoyages, getParametres, formatCurrency, formatDate, getEpargnesCache, getVoyagesCache } from '../../data/store';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -8,9 +7,14 @@ import { PiggyBank, Plus, Edit2, Trash2, X, Search } from 'lucide-react';
 const emptyForm = { libelle: '', montant: '', voyageId: '' };
 
 export default function Epargnes() {
-  const [epargnes, setEpargnes] = useState([]);
-  const [voyages, setVoyages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [epargnes, setEpargnes] = useState(() => {
+    const cached = getEpargnesCache();
+    return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
+  const [voyages, setVoyages] = useState(() => getVoyagesCache());
+  const [loading, setLoading] = useState(() => {
+    return getEpargnesCache().length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [filterVoyage, setFilterVoyage] = useState('');
   const [search, setSearch] = useState('');
@@ -26,7 +30,8 @@ export default function Epargnes() {
   const [defaultVoyageId, setDefaultVoyageId] = useState('');
 
   const load = async () => {
-    if (isFirstLoad) setLoading(true);
+    const hasCache = getEpargnesCache().length > 0;
+    if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allEpargnes, allVoyages, params] = await Promise.all([
         getEpargnes(), 

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { getClients, addClient, updateClient, deleteClient, getFactures, formatCurrency } from '../../data/store';
+import { getClients, addClient, updateClient, deleteClient, getFactures, formatCurrency, getClientsCache, getFacturesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Users, Search, Plus, Edit2, Trash2, Phone, MapPin, X, Check } from 'lucide-react';
@@ -16,14 +15,16 @@ const emptyForm = { nom: '', prenom: '', telephone: '', adresse: '' };
 
 export default function Clients() {
   const { user } = useAuth();
-  const [clients, setClients] = useState([]);
-  const [factures, setFactures] = useState([]);
+  const [clients, setClients] = useState(() => getClientsCache());
+  const [factures, setFactures] = useState(() => getFacturesCache());
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editClient, setEditClient] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    return getClientsCache().length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { toast, devise, refresh } = useApp();
 
@@ -38,7 +39,8 @@ export default function Clients() {
   }
 
   const load = async () => {
-    if (isFirstLoad) setLoading(true);
+    const hasCache = getClientsCache().length > 0;
+    if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allClients, allFactures] = await Promise.all([getClients(), getFactures()]);
       setClients(allClients);

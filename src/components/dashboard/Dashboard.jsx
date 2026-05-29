@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, CheckCircle, Clock, Activity,
   Users, FileText, ArrowRight, Truck
 } from 'lucide-react';
-import { getStats, getFactures, getClients, getVoyages, formatCurrency, formatDate } from '../../data/store';
+import { getStats, getFactures, getClients, getVoyages, formatCurrency, formatDate, getFacturesCache, getClientsCache, getVoyagesCache, getDepensesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import './Dashboard.css';
@@ -20,12 +20,75 @@ const STATUT_CONFIG = {
 };
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(null);
-  const [recentFactures, setRecentFactures] = useState([]);
-  const [topClients, setTopClients] = useState([]);
+  const [stats, setStats] = useState(() => {
+    const cachedFac = getFacturesCache();
+    const cachedDeps = getDepensesCache();
+    const cachedClients = getClientsCache();
+    const cachedVoyages = getVoyagesCache();
+    
+    if (cachedFac.length > 0) {
+      const totalCA = cachedFac.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
+      const totalPaye = cachedFac.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+      const totalResteAPayer = totalCA - totalPaye;
+      const totalDepenses = cachedDeps.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
+      const beneficeNet = totalPaye - totalDepenses;
+
+      const facturesPaye = cachedFac.filter(f => f.statut === 'paye').length;
+      const facturesPartiel = cachedFac.filter(f => f.statut === 'partiel').length;
+      const facturesImpaye = cachedFac.filter(f => f.statut === 'non_paye').length;
+
+      const monthly = {};
+      const now = new Date();
+      for (let i = 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0 };
+      }
+      cachedFac.forEach(f => {
+        if (!f.createdAt) return;
+        const d = new Date(f.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (monthly[key]) {
+          monthly[key].ca += Number(f.montantTotal || 0);
+          monthly[key].paye += Number(f.montantPaye || 0);
+        }
+      });
+
+      return {
+        totalCA, totalPaye, totalResteAPayer, totalDepenses, beneficeNet,
+        facturesPaye, facturesPartiel, facturesImpaye,
+        totalClients: cachedClients.length,
+        totalFactures: cachedFac.length,
+        totalVoyages: cachedVoyages.length,
+        monthly: Object.values(monthly),
+      };
+    }
+    return null;
+  });
+
+  const [recentFactures, setRecentFactures] = useState(() => {
+    const cachedFac = getFacturesCache();
+    return [...cachedFac]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 6);
+  });
+
+  const [topClients, setTopClients] = useState(() => {
+    const cachedFac = getFacturesCache();
+    const cachedClients = getClientsCache();
+    return cachedClients.map(c => ({
+      ...c,
+      nbFactures: cachedFac.filter(f => f.clientId === c.id || f.expediteurId === c.id).length,
+      totalCA: cachedFac.filter(f => f.clientId === c.id || f.expediteurId === c.id).reduce((sum, f) => sum + Number(f.montantTotal || 0), 0),
+    })).sort((a, b) => b.nbFactures - a.nbFactures).slice(0, 5);
+  });
+
   const [top3Best, setTop3Best] = useState([]);
   const [top3Worst, setTop3Worst] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const cachedFac = getFacturesCache();
+    return cachedFac.length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
   const { user } = useAuth();

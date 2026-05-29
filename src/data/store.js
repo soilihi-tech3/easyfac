@@ -683,3 +683,21 @@ export const formatDate = (dateStr) => {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
+// Synchronous Cache Getters for Instant UI Rendering (SWR Pattern)
+export const getClientsCache = () => getLocalCache('clients');
+export const getFacturesCache = () => getLocalCache('factures');
+export const getVoyagesCache = () => getLocalCache('voyages');
+export const getDepensesCache = () => getLocalCache('depenses');
+export const getEpargnesCache = () => getLocalCache('epargnes');
+export const getParametresCache = () => {
+  try {
+    const data = localStorage.getItem('ef_cache_parametres');
+    if (data) return JSON.parse(data);
+  } catch (e) {}
+  return {
+    entreprise: { nom: 'Mon Entreprise', telephone1: '', email: '', adresse: '', lieuComores: '', telComores1: '', telComores2: '' },
+    config: { prixKg: 6000, devise: 'FCFA', couleurPrimaire: '#6366f1', modeSombre: true, formatNumero: 'Fac-{YEAR2}-{NUM2}', modeleFacture: 'moderne', compteur: 0 },
+  };
+};
+

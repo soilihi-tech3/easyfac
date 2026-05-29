@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { getDepenses, addDepense, updateDepense, deleteDepense, getVoyages, getParametres, formatCurrency, formatDate } from '../../data/store';
+import { getDepenses, addDepense, updateDepense, deleteDepense, getVoyages, getParametres, formatCurrency, formatDate, getDepensesCache, getVoyagesCache } from '../../data/store';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
@@ -8,9 +7,14 @@ import { TrendingDown, Plus, Edit2, Trash2, X, Check, AlertCircle, Search } from
 const emptyForm = { nom: '', quantite: 1, montant: '', voyageId: '' };
 
 export default function Depenses() {
-  const [depenses, setDepenses] = useState([]);
-  const [voyages, setVoyages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [depenses, setDepenses] = useState(() => {
+    const cached = getDepensesCache();
+    return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
+  const [voyages, setVoyages] = useState(() => getVoyagesCache());
+  const [loading, setLoading] = useState(() => {
+    return getDepensesCache().length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [filterVoyage, setFilterVoyage] = useState('');
   const [search, setSearch] = useState('');
@@ -26,7 +30,8 @@ export default function Depenses() {
   const [defaultVoyageId, setDefaultVoyageId] = useState('');
 
   const load = async () => {
-    if (isFirstLoad) setLoading(true);
+    const hasCache = getDepensesCache().length > 0;
+    if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allDepenses, allVoyages, params] = await Promise.all([
         getDepenses(), 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate } from '../../data/store';
+import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
 import FactureModal from './FactureModal';
@@ -22,7 +22,10 @@ const STATUT_CFG = {
 
 export default function Factures() {
   const { user } = useAuth();
-  const [factures, setFactures] = useState([]);
+  const [factures, setFactures] = useState(() => {
+    const cached = getFacturesCache();
+    return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
   const [search, setSearch] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
   const [filterVoyage, setFilterVoyage] = useState('');
@@ -30,8 +33,10 @@ export default function Factures() {
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
-  const [voyages, setVoyages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [voyages, setVoyages] = useState(() => getVoyagesCache());
+  const [loading, setLoading] = useState(() => {
+    return getFacturesCache().length === 0;
+  });
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editFacture, setEditFacture] = useState(null);
@@ -43,9 +48,8 @@ export default function Factures() {
   const { toast, devise, prixKg, refresh, entreprise, params } = useApp();
   const config = params?.config || {};
 
-  const isAdmin = user?.role === 'admin';
-  let permissions = {};
-  if (user?.permissions) {
+  let permissions = null;
+  if (user) {
     try {
       permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
     } catch (e) {
@@ -54,7 +58,8 @@ export default function Factures() {
   }
 
   const load = useCallback(async () => {
-    if (isFirstLoad) setLoading(true);
+    const hasCache = getFacturesCache().length > 0;
+    if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allFactures, allVoyages] = await Promise.all([getFactures(), getVoyages()]);
       let f = allFactures.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));

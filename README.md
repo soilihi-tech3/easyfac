@@ -1,3 +1,12 @@
+---
+title: EasyFac Backend
+emoji: 🚀
+colorFrom: indigo
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # EasyFac — Application Web de Facturation Intelligente
 
 > Application de facturation professionnelle conçue pour les entreprises de transport et de colis en Afrique.

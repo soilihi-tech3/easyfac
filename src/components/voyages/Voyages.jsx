@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { getVoyages, addVoyage, updateVoyage, deleteVoyage, getStatsVoyage, formatCurrency, formatDate, getVoyagesCache, getFacturesCache, getDepensesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { Truck, Plus, Edit2, Trash2, Calendar, X, Check, TrendingUp, TrendingDown, DollarSign, FileText, Search } from 'lucide-react';

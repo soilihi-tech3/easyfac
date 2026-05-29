@@ -48,6 +48,7 @@ export default function Factures() {
   const { toast, devise, prixKg, refresh, entreprise, params } = useApp();
   const config = params?.config || {};
 
+  const isAdmin = user?.role === 'admin';
   let permissions = null;
   if (user) {
     try {

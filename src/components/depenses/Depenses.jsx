@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { getDepenses, addDepense, updateDepense, deleteDepense, getVoyages, getParametres, formatCurrency, formatDate, getDepensesCache, getVoyagesCache } from '../../data/store';
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';

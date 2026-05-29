@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { getClients, addClient, updateClient, deleteClient, getFactures, formatCurrency, getClientsCache, getFacturesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';

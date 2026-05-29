@@ -672,7 +672,7 @@ app.delete('/api/epargnes/:id', async (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.SPACE_ID ? 7860 : (process.env.PORT || 3001);
 
 // Démarre le serveur uniquement si on n'est pas sur Vercel
 if (process.env.VERCEL !== '1' && !process.env.VERCEL) {

@@ -403,10 +403,11 @@ async function runReminders() {
   const whatsappClient = require('./services/whatsappClient');
 
   // Load custom configuration from settings
-  let cordialText = "Cordialement.";
+  let cordialText = "Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.\nNous restons à votre entière disposition.\n\nCordialement,";
   let isEnabled = false;
   let devise = "FCFA";
   let entrepriseName = "EASYFAC";
+  let hasCustomCordial = false;
   try {
     const [settingsRows] = await pool.query('SELECT * FROM settings WHERE id = 1');
     if (settingsRows.length > 0) {
@@ -415,8 +416,9 @@ async function runReminders() {
       const entreprise = typeof settings.entreprise === 'string' ? JSON.parse(settings.entreprise) : settings.entreprise;
       if (config) {
         isEnabled = !!config.rappelAutomatique;
-        if (config.rappelCordial) {
+        if (config.rappelCordial && config.rappelCordial !== '') {
           cordialText = config.rappelCordial;
+          hasCustomCordial = true;
         }
         if (config.devise) {
           devise = config.devise;
@@ -473,7 +475,7 @@ async function runReminders() {
     const payeFormatted = `${Number(facture.montantPaye).toLocaleString('fr-FR')} ${devise}`;
     const resteFormatted = `${Number(reste).toLocaleString('fr-FR')} ${devise}`;
 
-    const messageText = [
+    const messageLines = [
       `*Rappel de paiement — Facture ${facture.numero}*`,
       `Bonjour ${prenomClient} ${nomClient},`,
       ``,
@@ -483,10 +485,14 @@ async function runReminders() {
       `*Reste à Payer :* *${resteFormatted}*`,
       `*Date d'échéance :* *${dateStr}*`,
       ``,
-      cordialText,
-      ``,
-      `*${entrepriseName}*`
-    ].join('\n');
+      cordialText
+    ];
+
+    if (!hasCustomCordial) {
+      messageLines.push(``, `*${entrepriseName}*`);
+    }
+
+    const messageText = messageLines.join('\n');
 
     try {
       await whatsappClient.sendText(phone, messageText);

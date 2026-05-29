@@ -219,11 +219,12 @@ export default function Factures() {
     const reste = total - paye;
     const dateStr = facture.dateLimite ? formatDate(facture.dateLimite) : "immédiatement";
     
-    const customCordial = config.rappelCordial !== undefined && config.rappelCordial !== ''
+    const hasCustomCordial = config.rappelCordial !== undefined && config.rappelCordial !== '';
+    const customCordial = hasCustomCordial
       ? config.rappelCordial
       : "Merci de bien vouloir régulariser ce solde restant au plus tard à cette date.\nNous restons à votre entière disposition.\n\nCordialement,";
 
-    const lines = [
+    const linesArray = [
       `*Rappel de paiement — Facture ${facture.numero}*`,
       `Bonjour ${facture.expediteur?.prenom || ''} ${facture.expediteur?.nom || ''},`,
       ``,
@@ -233,10 +234,14 @@ export default function Factures() {
       `*Reste à Payer :* *${formatCurrency(reste, devise)}*`,
       `*Date d'échéance :* *${dateStr}*`,
       ``,
-      customCordial,
-      ``,
-      `*${entreprise?.nom || 'EASYFAC'}*`
-    ].join('\n');
+      customCordial
+    ];
+
+    if (!hasCustomCordial) {
+      linesArray.push(``, `*${entreprise?.nom || 'EASYFAC'}*`);
+    }
+
+    const lines = linesArray.join('\n');
     
     let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
     phone = phone.replace(/\D/g, '');

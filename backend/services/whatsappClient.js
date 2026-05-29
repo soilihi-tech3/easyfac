@@ -3,20 +3,46 @@ const qrcode = require('qrcode');
 
 class WhatsAppService {
   constructor() {
+    const isMac = process.platform === 'darwin';
+    
+    // Clean up SingletonLock if it exists to prevent Puppeteer "browser is already running" error
+    const fs = require('fs');
+    const path = require('path');
+    const lockPath = path.join(__dirname, '../.wwebjs_auth/session/SingletonLock');
+    if (fs.existsSync(lockPath)) {
+      try {
+        fs.unlinkSync(lockPath);
+        console.log('Cleaned up lingering WhatsApp Puppeteer SingletonLock');
+      } catch (err) {
+        console.error('Could not clean up WhatsApp Puppeteer SingletonLock:', err.message);
+      }
+    }
+
+    const puppeteerArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--disable-gpu',
+      '--disable-extensions',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-features=TranslateUI,BlinkGenPropertyTrees,site-per-process'
+    ];
+
+    if (!isMac) {
+      puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+    }
+
+    console.log(`Initializing Puppeteer with args: ${puppeteerArgs.join(' ')}`);
+
     this.client = new Client({
       authStrategy: new LocalAuth(),
       puppeteer: {
         executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu'
-        ]
+        args: puppeteerArgs
       }
     });
 

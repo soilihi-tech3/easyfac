@@ -13,12 +13,16 @@ import Statistiques from './components/statistiques/Statistiques';
 import Parametres from './components/parametres/Parametres';
 import Users from './components/users/Users';
 import Login from './components/auth/Login';
+import SuperAdminDashboard from './components/superadmin/SuperAdminDashboard';
 import './index.css';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'super_admin') {
+    return <SuperAdminDashboard />;
+  }
   return <Layout>{children}</Layout>;
 };
 

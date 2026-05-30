@@ -31,7 +31,7 @@ RUN npm install
 COPY --chown=node:node backend/ .
 
 # Expose port (3001 by default, Hugging Face maps port 7860 dynamically via the PORT env variable)
-EXPOSE 3001
+EXPOSE 7860
 
 # Command to run
 CMD [ "node", "server.js" ]

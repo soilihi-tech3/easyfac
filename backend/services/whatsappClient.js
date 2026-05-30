@@ -1,141 +1,159 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
+const fs = require('fs');
+const path = require('path');
 
-class WhatsAppService {
+class WhatsAppManager {
   constructor() {
-    const isMac = process.platform === 'darwin';
+    this.clients = new Map(); // boutiqueId => ClientData
+  }
+
+  // Obtenir ou initialiser un client pour une boutique
+  getClientData(boutiqueId) {
+    if (!boutiqueId) throw new Error("boutiqueId est requis");
     
-    // Clean up SingletonLock if it exists to prevent Puppeteer "browser is already running" error
-    const fs = require('fs');
-    const path = require('path');
-    const lockPath = path.join(__dirname, '../.wwebjs_auth/session/SingletonLock');
-    if (fs.existsSync(lockPath)) {
-      try {
-        fs.unlinkSync(lockPath);
-        console.log('Cleaned up lingering WhatsApp Puppeteer SingletonLock');
-      } catch (err) {
-        console.error('Could not clean up WhatsApp Puppeteer SingletonLock:', err.message);
+    let clientData = this.clients.get(boutiqueId);
+    if (!clientData) {
+      // Nettoyer les verrous Puppeteer potentiels pour cette boutique
+      const lockPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}/SingletonLock`);
+      if (fs.existsSync(lockPath)) {
+        try {
+          fs.unlinkSync(lockPath);
+          console.log(`Cleaned up lingering WhatsApp Puppeteer SingletonLock for boutique ${boutiqueId}`);
+        } catch (err) {
+          console.error(`Could not clean up SingletonLock for ${boutiqueId}:`, err.message);
+        }
       }
+
+      const isMac = process.platform === 'darwin';
+      const puppeteerArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI,BlinkGenPropertyTrees,site-per-process'
+      ];
+
+      if (!isMac) {
+        puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+      }
+
+      const client = new Client({
+        authStrategy: new LocalAuth({ clientId: boutiqueId }),
+        puppeteer: {
+          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+          args: puppeteerArgs
+        }
+      });
+
+      clientData = {
+        client,
+        status: 'INITIALIZING',
+        qrCodeUrl: null,
+        phoneConnected: null
+      };
+
+      this.clients.set(boutiqueId, clientData);
+
+      client.on('qr', async (qr) => {
+        console.log(`WhatsApp QR Code generated for boutique ${boutiqueId}`);
+        clientData.status = 'QR_READY';
+        try {
+          clientData.qrCodeUrl = await qrcode.toDataURL(qr);
+        } catch (err) {
+          console.error('Error generating QR code data URL', err);
+        }
+      });
+
+      client.on('ready', () => {
+        console.log(`WhatsApp Client is ready for boutique ${boutiqueId}`);
+        clientData.status = 'CONNECTED';
+        clientData.qrCodeUrl = null;
+        if (client.info && client.info.wid) {
+          clientData.phoneConnected = client.info.wid.user;
+        }
+      });
+
+      client.on('authenticated', () => {
+        console.log(`WhatsApp Authenticated for boutique ${boutiqueId}`);
+      });
+
+      client.on('auth_failure', msg => {
+        console.error(`WhatsApp Authentication failure for boutique ${boutiqueId}`, msg);
+        clientData.status = 'AUTH_FAILURE';
+      });
+
+      client.on('disconnected', (reason) => {
+        console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}`, reason);
+        clientData.status = 'DISCONNECTED';
+        clientData.phoneConnected = null;
+      });
+
+      console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
+      client.initialize().catch(err => {
+        console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);
+      });
     }
 
-    const puppeteerArgs = [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--disable-gpu',
-      '--disable-extensions',
-      '--disable-background-networking',
-      '--disable-background-timer-throttling',
-      '--disable-renderer-backgrounding',
-      '--disable-features=TranslateUI,BlinkGenPropertyTrees,site-per-process'
-    ];
+    return clientData;
+  }
 
-    if (!isMac) {
-      puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+  getStatus(boutiqueId) {
+    if (!boutiqueId) return { status: 'ERROR', message: "boutiqueId requis" };
+    // Ne pas créer un nouveau client si on veut juste le statut et qu'il n'existe pas
+    const clientData = this.clients.get(boutiqueId);
+    if (!clientData) {
+      // Si on veut initier la connexion dès qu'on demande le statut :
+      const newClient = this.getClientData(boutiqueId);
+      return { status: newClient.status, qr: newClient.qrCodeUrl, phone: newClient.phoneConnected };
     }
-
-    console.log(`Initializing Puppeteer with args: ${puppeteerArgs.join(' ')}`);
-
-    this.client = new Client({
-      authStrategy: new LocalAuth(),
-      puppeteer: {
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: puppeteerArgs
-      }
-    });
-
-    this.qrCodeUrl = null;
-    this.status = 'INITIALIZING';
-    this.phoneConnected = null;
-
-    this.initialize();
-  }
-
-  initialize() {
-    this.client.on('qr', async (qr) => {
-      console.log('WhatsApp QR Code generated, waiting for scan...');
-      this.status = 'QR_READY';
-      try {
-        this.qrCodeUrl = await qrcode.toDataURL(qr);
-      } catch (err) {
-        console.error('Error generating QR code data URL', err);
-      }
-    });
-
-    this.client.on('ready', () => {
-      console.log('WhatsApp Client is ready!');
-      this.status = 'CONNECTED';
-      this.qrCodeUrl = null;
-      if (this.client.info && this.client.info.wid) {
-        this.phoneConnected = this.client.info.wid.user;
-      }
-    });
-
-    this.client.on('authenticated', () => {
-      console.log('WhatsApp Authenticated');
-    });
-
-    this.client.on('auth_failure', msg => {
-      console.error('WhatsApp Authentication failure', msg);
-      this.status = 'AUTH_FAILURE';
-    });
-
-    this.client.on('disconnected', (reason) => {
-      console.log('WhatsApp Client was disconnected', reason);
-      this.status = 'DISCONNECTED';
-      this.phoneConnected = null;
-      // Optionnel : on peut relancer client.initialize() ici selon le besoin
-      // this.client.initialize(); 
-    });
-
-    console.log('Starting WhatsApp client initialization...');
-    this.client.initialize().catch(err => {
-      console.error('Failed to initialize WhatsApp client:', err);
-    });
-  }
-
-  getStatus() {
     return {
-      status: this.status,
-      qr: this.qrCodeUrl,
-      phone: this.phoneConnected
+      status: clientData.status,
+      qr: clientData.qrCodeUrl,
+      phone: clientData.phoneConnected
     };
   }
 
-  async logout() {
-    if (this.status === 'CONNECTED') {
-      await this.client.logout();
-      this.status = 'DISCONNECTED';
-      this.phoneConnected = null;
-      this.qrCodeUrl = null;
-      this.client.initialize(); // Re-initialize to generate a new QR
+  async logout(boutiqueId) {
+    if (!boutiqueId) return;
+    const clientData = this.clients.get(boutiqueId);
+    if (clientData && clientData.status === 'CONNECTED') {
+      await clientData.client.logout();
+      clientData.status = 'DISCONNECTED';
+      clientData.phoneConnected = null;
+      clientData.qrCodeUrl = null;
+      clientData.client.initialize(); // Re-initialize to generate a new QR
     }
   }
 
-  async sendText(phone, message) {
-    if (this.status !== 'CONNECTED') {
-      throw new Error("Le client WhatsApp n'est pas connecté. Veuillez scanner le QR code.");
+  async sendText(boutiqueId, phone, message) {
+    const clientData = this.getClientData(boutiqueId);
+    if (clientData.status !== 'CONNECTED') {
+      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
     const cleanPhone = phone.replace(/\D/g, '');
     const chatId = `${cleanPhone}@c.us`;
-    await this.client.sendMessage(chatId, message);
+    await clientData.client.sendMessage(chatId, message);
   }
 
-  async sendPdf(phone, pdfBuffer, filename, caption = '') {
-    if (this.status !== 'CONNECTED') {
-      throw new Error("Le client WhatsApp n'est pas connecté. Veuillez scanner le QR code.");
+  async sendPdf(boutiqueId, phone, pdfBuffer, filename, caption = '') {
+    const clientData = this.getClientData(boutiqueId);
+    if (clientData.status !== 'CONNECTED') {
+      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
     const cleanPhone = phone.replace(/\D/g, '');
     const chatId = `${cleanPhone}@c.us`;
     
-    // Create MessageMedia from buffer
     const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename);
-    await this.client.sendMessage(chatId, media, { caption });
+    await clientData.client.sendMessage(chatId, media, { caption });
   }
 }
 
-// Export as a singleton
-const whatsappService = new WhatsAppService();
-module.exports = whatsappService;
+const whatsappManager = new WhatsAppManager();
+module.exports = whatsappManager;

@@ -701,3 +701,71 @@ export const getParametresCache = () => {
   };
 };
 
+// ---- SUPERADMIN ----
+export const getSuperAdminBoutiques = async () => {
+  return apiCall('/api/superadmin/boutiques');
+};
+
+export const createSuperAdminBoutique = async (data) => {
+  return apiCall('/api/superadmin/boutiques', 'POST', data);
+};
+
+export const updateSuperAdminBoutique = async (id, data) => {
+  return apiCall(`/api/superadmin/boutiques/${id}`, 'PUT', data);
+};
+
+export const deleteSuperAdminBoutique = async (id) => {
+  return apiCall(`/api/superadmin/boutiques/${id}`, 'DELETE');
+};
+
+export const changeBoutiquePassword = async (id, newPassword) => {
+  return apiCall(`/api/superadmin/boutiques/${id}/change-password`, 'PUT', { newPassword });
+};
+
+export const getSuperAdminStats = async () => {
+  return apiCall('/api/superadmin/statistics');
+};
+
+export const getSuperAdminEpargnes = async () => {
+  return apiCall('/api/superadmin/epargnes');
+};
+
+export const createSuperAdminEpargne = async (data) => {
+  return apiCall('/api/superadmin/epargnes', 'POST', data);
+};
+
+export const deleteSuperAdminEpargne = async (id) => {
+  return apiCall(`/api/superadmin/epargnes/${id}`, 'DELETE');
+};
+
+// Boutique Payments
+export const getSuperAdminPayments = async () => {
+  return apiCall('/api/superadmin/payments');
+};
+
+export const createSuperAdminPayment = async (data) => {
+  return apiCall('/api/superadmin/payments', 'POST', data);
+};
+
+export const deleteSuperAdminPayment = async (id) => {
+  return apiCall(`/api/superadmin/payments/${id}`, 'DELETE');
+};
+
+export const sendBoutiquePaymentReminder = async (data) => {
+  return apiCall('/api/superadmin/payments/reminder', 'POST', data);
+};
+
+// Admin Personal Expenses
+export const getSuperAdminDepenses = async () => {
+  return apiCall('/api/superadmin/depenses');
+};
+
+export const createSuperAdminDepense = async (data) => {
+  return apiCall('/api/superadmin/depenses', 'POST', data);
+};
+
+export const deleteSuperAdminDepense = async (id) => {
+  return apiCall(`/api/superadmin/depenses/${id}`, 'DELETE');
+};
+
+

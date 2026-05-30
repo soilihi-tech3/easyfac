@@ -1,18 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const whatsappClient = require('../services/whatsappClient');
+const whatsappManager = require('../services/whatsappClient');
 
 // Use multer to handle memory storage for the uploaded PDF
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/status', (req, res) => {
-  res.json(whatsappClient.getStatus());
+  const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+  if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+  res.json(whatsappManager.getStatus(boutiqueId));
 });
 
 router.post('/logout', async (req, res) => {
   try {
-    await whatsappClient.logout();
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+    await whatsappManager.logout(boutiqueId);
     res.json({ success: true, message: 'Déconnecté avec succès' });
   } catch (err) {
     res.status(500).json({ error: 'Erreur lors de la déconnexion', details: err.message });
@@ -21,6 +25,9 @@ router.post('/logout', async (req, res) => {
 
 router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
   try {
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+
     const { phone } = req.body;
     const file = req.file;
 
@@ -28,8 +35,8 @@ router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
       return res.status(400).json({ error: "Numéro de téléphone ou fichier PDF manquant." });
     }
 
-    // Use the local WhatsApp client
-    await whatsappClient.sendPdf(
+    await whatsappManager.sendPdf(
+      boutiqueId,
       phone, 
       file.buffer, 
       'facture.pdf', 
@@ -49,11 +56,15 @@ router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
 
 router.post('/send-message', async (req, res) => {
   try {
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+
     const { phone, message } = req.body;
     if (!phone || !message) {
       return res.status(400).json({ error: "Numéro de téléphone ou message manquant." });
     }
-    await whatsappClient.sendText(phone, message);
+    
+    await whatsappManager.sendText(boutiqueId, phone, message);
     res.json({ success: true, message: "Message envoyé avec succès !" });
   } catch (error) {
     console.error("WhatsApp Error:", error.message);

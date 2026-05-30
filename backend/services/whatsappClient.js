@@ -41,7 +41,7 @@ class WhatsAppManager {
       ];
 
       if (!isMac) {
-        puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+        puppeteerArgs.push('--no-zygote', '--js-flags=--max-old-space-size=150');
       }
 
       const client = new Client({

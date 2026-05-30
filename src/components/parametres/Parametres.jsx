@@ -53,7 +53,7 @@ export default function Parametres() {
     };
 
     fetchWaStatus();
-    interval = setInterval(fetchWaStatus, 3000);
+    interval = setInterval(fetchWaStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 

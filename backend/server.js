@@ -1362,6 +1362,11 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
             VALUES (?, ?, ?, ?, ?, 'super_admin', NULL)
           `, [uuidv4(), 'Abdou', 'Soilihi', adminEmail, superAdminHash]);
           console.log('SaaS: Super Admin seeded successfully!');
+        } else {
+          await pool.query(`
+            UPDATE users SET role = 'super_admin', boutique_id = NULL WHERE email = ?
+          `, [adminEmail]);
+          console.log('SaaS: Super Admin role enforced on existing email!');
         }
       } catch (saasErr) {
         console.error('SaaS: Migration failed at startup:', saasErr.message);

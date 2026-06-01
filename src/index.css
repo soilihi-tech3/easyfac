@@ -1002,9 +1002,24 @@ input:-webkit-autofill:active {
 
 @media (max-width: 768px) {
   .modal {
-    max-height: calc(100vh - 48px) !important;
+    max-height: calc(100vh - 32px) !important;
     overflow-y: auto !important;
     padding: 16px !important;
+  }
+  .form-input {
+    font-size: 16px !important; /* Empêche le zoom automatique sur iOS */
+  }
+}
+
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0 !important;
+  }
+  .modal {
+    max-height: 100dvh !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
   }
 }
 

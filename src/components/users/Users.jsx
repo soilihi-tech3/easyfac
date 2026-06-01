@@ -230,12 +230,13 @@ export default function Users() {
   const totalAdmins = users.filter(u => u.role === 'admin').length;
   const totalEmployees = users.filter(u => u.role === 'employee').length;
 
-  if (loading) return <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>Chargement...</div>;
+  // No blocking loading screen
 
   return (
-    <div className="page-enter" style={{ width: '100%' }}>
-      {/* Header */}
-      <div className="page-header" style={{ marginBottom: 28 }}>
+    <div className="page-enter page-with-table" style={{ width: '100%' }}>
+      <div className="sticky-top-section">
+        {/* Header */}
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
           <h1 className="page-title">Employés & Droits d'Accès</h1>
           <p className="page-subtitle">Pilotez les autorisations et attribuez des restrictions d'accès précises à vos collaborateurs.</p>
@@ -243,6 +244,7 @@ export default function Users() {
         <button className="btn btn-primary" onClick={() => openModal()} style={{ gap: 8 }}>
           <Plus size={16} /> Nouvel Employé
         </button>
+      </div>
       </div>
 
       {/* KPI Stats Widgets */}
@@ -282,7 +284,7 @@ export default function Users() {
       </div>
 
       {/* Main Table Box */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div className="card table-card" style={{ padding: 0, overflow: 'hidden' }}>
         {/* Table Filter Actions Bar */}
         <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
           <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Membres de l'équipe ({filteredUsers.length})</h3>
@@ -451,7 +453,7 @@ export default function Users() {
       </div>
 
       {showModal && createPortal(
-        <div className="modal-overlay" onClick={closeModal}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 740 }}>
             <div className="modal-header" style={{ marginBottom: 24 }}>
               <h2 className="modal-title" style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -680,9 +682,11 @@ export default function Users() {
                 </div>
               )}
 
-              <button type="submit" className="btn btn-primary" style={{ marginTop: 8, width: '100%', height: 44, justifyContent: 'center', fontSize: 14 }}>
-                Enregistrer le compte & les droits
-              </button>
+              <div className="modal-footer">
+                <button type="submit" className="btn btn-primary" style={{ width: '100%', height: 44, justifyContent: 'center', fontSize: 14 }}>
+                  Enregistrer le compte & les droits
+                </button>
+              </div>
             </form>
           </div>
         </div>,

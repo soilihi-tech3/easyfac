@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getParametres, updateParametres, getVoyages, API_URL } from '../../data/store';
+import { getParametres, updateParametres, getVoyages, getParametresCache, getVoyagesCache, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import {
   Save, Building2, Image, Settings2, FileText as FileIcon,
@@ -26,9 +26,9 @@ const SectionCard = ({ Icon, title, iconColor = 'var(--brand)', children }) => (
 );
 
 export default function Parametres() {
-  const [params, setParams] = useState(null);
-  const [voyages, setVoyages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [params, setParams] = useState(() => getParametresCache() || null);
+  const [voyages, setVoyages] = useState(() => getVoyagesCache() || []);
+  const [loading, setLoading] = useState(() => !getParametresCache());
   const [saving, setSaving] = useState(false);
   const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null, phone: null });
   const { toast, refreshData, toggleTheme, isDark } = useApp();
@@ -59,7 +59,7 @@ export default function Parametres() {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true);
+      if (!getParametresCache()) setLoading(true);
       try {
         const [p, allVoyages] = await Promise.all([getParametres(), getVoyages()]);
         setParams(p);
@@ -125,14 +125,16 @@ export default function Parametres() {
 
   return (
     <div className="page-enter">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Paramètres</h1>
-          <p className="page-subtitle">Configuration de votre application</p>
+      <div className="sticky-top-section">
+        <div className="page-header" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="page-title">Paramètres</h1>
+            <p className="page-subtitle">Configuration de votre application</p>
+          </div>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
+            <Save size={16} /> {saving ? 'Sauvegarde...' : 'Sauvegarder'}
+          </button>
         </div>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
-          <Save size={16} /> {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-        </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

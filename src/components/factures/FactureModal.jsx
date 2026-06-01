@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
-import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency } from '../../data/store';
+import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, getVoyagesCache, getClientsCache, getParametresCache } from '../../data/store';
 import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 const MODES_PAIEMENT = [
@@ -56,9 +56,12 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     }
   }, [facture]);
 
-  const [voyages, setVoyages] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(!facture);
+  const [voyages, setVoyages] = useState(() => getVoyagesCache() || []);
+  const [clients, setClients] = useState(() => getClientsCache() || []);
+  const [loading, setLoading] = useState(() => {
+    if (facture) return false;
+    return !getParametresCache();
+  });
   const [clientSearch, setClientSearch] = useState('');
   const [clientResults, setClientResults] = useState([]);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
@@ -86,10 +89,10 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
             ...f, 
             numero: num, 
             prixKg: prixKg || 6000, 
-            voyageId: defId || ((user?.role === 'employee' && allVoyages.length > 0) ? allVoyages[0].id : '')
+            voyageId: defId || (allVoyages.length > 0 ? allVoyages[0].id : '')
           }));
-          setLoading(false);
         }
+        setLoading(false);
       } catch (err) {
         console.error(err);
       }
@@ -209,8 +212,8 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   );
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 800 }} onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay">
+      <div className="modal" style={{ maxWidth: 800 }}>
         <div className="modal-header">
           <h2 className="modal-title">{facture ? 'Modifier la facture' : 'Nouvelle facture'}</h2>
           <button className="modal-close" onClick={onClose}><X size={15} /></button>
@@ -439,7 +442,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                 </div>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label">Prix au kg ({devise})</label>
-                  <input className="form-input" disabled type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
+                  <input className="form-input" type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
                 </div>
                 <div className="transport-total-col">
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Frais de transport</div>
@@ -564,7 +567,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
         )}
 
         {!loading && (
-          <div className="flex justify-end gap-3" style={{ marginTop: 28 }}>
+          <div className="modal-footer">
             <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Annuler</button>
             <button className="btn btn-primary" onClick={handleSubmit} disabled={saving} style={{ opacity: saving ? 0.7 : 1 }}>
               {saving ? 'Enregistrement en cours...' : (facture ? 'Enregistrer les modifications' : 'Créer la facture')}

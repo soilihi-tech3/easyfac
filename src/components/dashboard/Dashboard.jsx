@@ -133,7 +133,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
-      if (isFirstLoad) setLoading(true);
+      if (isFirstLoad && getFacturesCache().length === 0) setLoading(true);
       try {
         const [s, allFac, allDeps, clients, voyages] = await Promise.all([
           getStats(),

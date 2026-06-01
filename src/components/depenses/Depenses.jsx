@@ -66,7 +66,7 @@ export default function Depenses() {
   const openAdd  = () => { 
     setForm({ 
       ...emptyForm, 
-      voyageId: defaultVoyageId || filterVoyage || (user?.role === 'employee' && voyages.length > 0 ? voyages[0].id : '') 
+      voyageId: defaultVoyageId || filterVoyage || (voyages.length > 0 ? voyages[0].id : '') 
     }); 
     setEditDep(null); 
     setShowModal(true); 
@@ -123,8 +123,9 @@ export default function Depenses() {
   }
 
   return (
-    <div className="page-enter">
-      <div className="page-header">
+    <div className="page-enter page-with-table">
+      <div className="sticky-top-section">
+        <div className="page-header">
         <div>
           <h1 className="page-title">Dépenses</h1>
           <p className="page-subtitle">
@@ -137,6 +138,7 @@ export default function Depenses() {
             <Plus size={16} /> Ajouter une dépense
           </button>
         )}
+      </div>
       </div>
 
       {/* Filters */}
@@ -175,7 +177,7 @@ export default function Depenses() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card table-card" style={{ padding: 0 }}>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -249,8 +251,8 @@ export default function Depenses() {
 
       {/* Add/Edit Modal */}
       {showModal && createPortal(
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 500 }}>
             <div className="modal-header">
               <h2 className="modal-title">{editDep ? 'Modifier la dépense' : 'Nouvelle dépense'}</h2>
               <button className="modal-close" onClick={() => setShowModal(false)}><X size={15} /></button>
@@ -284,7 +286,7 @@ export default function Depenses() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSubmit}>
                 <Check size={15} /> {editDep ? 'Enregistrer' : 'Ajouter'}
@@ -297,7 +299,7 @@ export default function Depenses() {
 
       {/* Confirm Delete */}
       {confirmDelete && (
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Supprimer la dépense ?</h2>
@@ -306,7 +308,7 @@ export default function Depenses() {
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
               La dépense <strong>{confirmDelete.nom}</strong> ({formatCurrency(confirmDelete.montant, devise)}) sera définitivement supprimée.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>
                 <Trash2 size={14} /> Supprimer

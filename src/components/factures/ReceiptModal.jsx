@@ -954,7 +954,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
   );
 
   return createPortal(
-    <div className="modal-overlay" onClick={onClose} style={{
+    <div className="modal-overlay" style={{
       position: 'fixed', inset: 0,
       background: 'rgba(15, 23, 42, 0.8)',
       backdropFilter: 'blur(12px)',

@@ -298,9 +298,10 @@ export default function Factures() {
   }
 
   return (
-    <div className="page-enter">
-      {/* Header */}
-      <div className="page-header" style={{ marginBottom: 20 }}>
+    <div className="page-enter page-with-table">
+      <div className="sticky-top-section">
+        {/* Header */}
+      <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
           <h1 className="page-title">Factures</h1>
           <p className="page-subtitle">Pilotez la facturation, enregistrez les règlements et suivez les soldes.</p>
@@ -310,6 +311,7 @@ export default function Factures() {
             <Plus size={16} /> Nouvelle facture
           </button>
         )}
+      </div>
       </div>
 
       {/* Factures KPI Grid */}
@@ -453,7 +455,7 @@ export default function Factures() {
       </div>
 
       {/* Table */}
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card table-card" style={{ padding: 0 }}>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -576,7 +578,7 @@ export default function Factures() {
       )}
 
       {confirmDelete && createPortal(
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Supprimer la facture ?</h2>
@@ -585,7 +587,7 @@ export default function Factures() {
             <p style={{ color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
               La facture <strong>{confirmDelete.numero}</strong> sera définitivement supprimée.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>
                 <Trash2 size={14} /> Supprimer
@@ -597,7 +599,7 @@ export default function Factures() {
       )}
 
       {paymentFacture && createPortal(
-        <div className="modal-overlay" onClick={() => setPaymentFacture(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 450 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Réaliser un paiement</h2>
@@ -665,7 +667,7 @@ export default function Factures() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setPaymentFacture(null)}>Annuler</button>
               <button className="btn btn-primary" onClick={submitPayment}>
                 Valider le paiement

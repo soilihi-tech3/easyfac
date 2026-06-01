@@ -124,8 +124,9 @@ export default function Epargnes() {
   }
 
   return (
-    <div className="page-enter">
-      <div className="page-header">
+    <div className="page-enter page-with-table">
+      <div className="sticky-top-section">
+        <div className="page-header">
         <div>
           <h1 className="page-title">Épargne</h1>
           <p className="page-subtitle">
@@ -136,6 +137,7 @@ export default function Epargnes() {
         <button className="btn btn-primary" onClick={openAdd}>
           <Plus size={16} /> Épargner de l'argent
         </button>
+      </div>
       </div>
 
       {/* Filters */}
@@ -174,7 +176,7 @@ export default function Epargnes() {
         </div>
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card table-card" style={{ padding: 0 }}>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -237,7 +239,7 @@ export default function Epargnes() {
 
       {/* Add/Edit Modal */}
       {showModal && createPortal(
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">{editEp ? 'Modifier l\'épargne' : 'Nouvel versement d\'épargne'}</h2>
@@ -260,7 +262,7 @@ export default function Epargnes() {
                 </select>
               </div>
             </div>
-            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSubmit}>Valider</button>
             </div>
@@ -271,7 +273,7 @@ export default function Epargnes() {
 
       {/* Delete Confirmation Modal */}
       {confirmDelete && createPortal(
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title" style={{ color: 'var(--danger)' }}>Confirmer la suppression</h2>
@@ -280,7 +282,7 @@ export default function Epargnes() {
             <div className="modal-body">
               Êtes-vous sûr de vouloir supprimer l'épargne <strong>{confirmDelete.libelle}</strong> de <strong>{formatCurrency(confirmDelete.montant, devise)}</strong> ?
             </div>
-            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>Supprimer</button>
             </div>

@@ -113,24 +113,14 @@ export default function Clients() {
   }
 
   return (
-    <div className="page-enter">
-      {/* Header */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Clients</h1>
-          <p className="page-subtitle">
-            {clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}
-          </p>
-        </div>
-        <div className="flex gap-3 flex-wrap">
-          <div className="search-bar">
-            <span className="search-icon-wrap"><Search size={15} /></span>
-            <input
-              className="form-input"
-              placeholder="Rechercher..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+    <div className="page-enter page-with-table">
+      <div className="sticky-top-section">
+        <div className="page-header" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="page-title">Clients</h1>
+            <p className="page-subtitle">
+              {clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}
+            </p>
           </div>
           {(isAdmin || permissions.creerClient) && (
             <button className="btn btn-primary" onClick={openAdd}>
@@ -140,8 +130,20 @@ export default function Clients() {
         </div>
       </div>
 
+      <div className="flex gap-3 flex-wrap" style={{ marginBottom: 20 }}>
+        <div className="search-bar" style={{ width: '100%', maxWidth: 300 }}>
+          <span className="search-icon-wrap"><Search size={15} /></span>
+          <input
+            className="form-input"
+            placeholder="Rechercher..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Table */}
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card table-card" style={{ padding: 0 }}>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -231,7 +233,7 @@ export default function Clients() {
 
       {/* Add/Edit Modal */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">{editClient ? 'Modifier le client' : 'Nouveau client'}</h2>
@@ -273,7 +275,7 @@ export default function Clients() {
                 <input className="form-input" value={form.adresse} onChange={e => setForm(f => ({ ...f, adresse: e.target.value }))} placeholder="Dakar, Médina" />
               </div>
             </div>
-            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSubmit}>
                 <Check size={15} /> {editClient ? 'Enregistrer' : 'Ajouter'}
@@ -285,7 +287,7 @@ export default function Clients() {
 
       {/* Confirm Delete */}
       {confirmDelete && (
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Supprimer le client ?</h2>
@@ -295,7 +297,7 @@ export default function Clients() {
               Voulez-vous vraiment supprimer <strong>{confirmDelete.prenom} {confirmDelete.nom}</strong> ?
               Cette action est irréversible.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>
                 <Trash2 size={14} /> Supprimer

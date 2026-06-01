@@ -125,8 +125,9 @@ export default function Voyages() {
 
   return (
     <div className="page-enter">
-      {/* Header */}
-      <div className="page-header">
+      <div className="sticky-top-section">
+        {/* Header */}
+        <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
           <h1 className="page-title">Voyages</h1>
           <p className="page-subtitle">
@@ -138,6 +139,7 @@ export default function Voyages() {
             <Plus size={16} /> Nouveau voyage
           </button>
         )}
+      </div>
       </div>
 
       {/* Filters */}
@@ -267,8 +269,8 @@ export default function Voyages() {
 
       {/* Add/Edit Modal */}
       {showModal && createPortal(
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 500 }}>
             <div className="modal-header">
               <h2 className="modal-title">{editVoyage ? 'Modifier le voyage' : 'Nouveau voyage'}</h2>
               <button className="modal-close" onClick={() => setShowModal(false)}><X size={15} /></button>
@@ -287,7 +289,7 @@ export default function Voyages() {
                 <input className="form-input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Notes supplémentaires..." />
               </div>
             </div>
-            <div className="flex justify-end gap-3" style={{ marginTop: 24 }}>
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Annuler</button>
               <button className="btn btn-primary" onClick={handleSubmit}>
                 <Check size={15} /> {editVoyage ? 'Enregistrer' : 'Créer'}
@@ -300,7 +302,7 @@ export default function Voyages() {
 
       {/* Confirm Delete */}
       {confirmDelete && createPortal(
-        <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
+        <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2 className="modal-title">Supprimer le voyage ?</h2>
@@ -310,7 +312,7 @@ export default function Voyages() {
               Le voyage <strong>{confirmDelete.nom}</strong> sera supprimé définitivement.
               Les factures associées ne seront pas supprimées.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Annuler</button>
               <button className="btn btn-danger" onClick={() => handleDelete(confirmDelete.id)}>
                 <Trash2 size={14} /> Supprimer

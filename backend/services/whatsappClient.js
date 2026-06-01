@@ -98,6 +98,8 @@ class WhatsAppManager {
       console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
       client.initialize().catch(err => {
         console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);
+        clientData.status = 'ERROR';
+        clientData.qrCodeUrl = null;
       });
     }
 
@@ -123,12 +125,22 @@ class WhatsAppManager {
   async logout(boutiqueId) {
     if (!boutiqueId) return;
     const clientData = this.clients.get(boutiqueId);
-    if (clientData && clientData.status === 'CONNECTED') {
-      await clientData.client.logout();
-      clientData.status = 'DISCONNECTED';
-      clientData.phoneConnected = null;
-      clientData.qrCodeUrl = null;
-      clientData.client.initialize(); // Re-initialize to generate a new QR
+    if (clientData) {
+      try {
+        await clientData.client.destroy();
+      } catch (e) {
+        console.error('Error destroying client:', e);
+      }
+      this.clients.delete(boutiqueId);
+      
+      const authPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+      if (fs.existsSync(authPath)) {
+        try {
+          fs.rmSync(authPath, { recursive: true, force: true });
+        } catch (e) {
+          console.error('Error removing auth folder:', e);
+        }
+      }
     }
   }
 

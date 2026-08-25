@@ -13,151 +13,187 @@ if (fs.existsSync(projectCacheDir)) {
 class WhatsAppManager {
   constructor() {
     this.clients = new Map(); // boutiqueId => ClientData
+    this.initPromises = new Map(); // boutiqueId => Promise<ClientData> (Concurrency Lock)
   }
 
   // Obtenir ou initialiser un client pour une boutique
   async getClientData(boutiqueId) {
     if (!boutiqueId) throw new Error("boutiqueId est requis");
     
-    let clientData = this.clients.get(boutiqueId);
-    if (!clientData) {
-      // Nettoyer les verrous Puppeteer potentiels pour cette boutique
-      const lockPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}/SingletonLock`);
-      if (fs.existsSync(lockPath)) {
-        try {
-          fs.unlinkSync(lockPath);
-          console.log(`Cleaned up lingering WhatsApp Puppeteer SingletonLock for boutique ${boutiqueId}`);
-        } catch (err) {
-          console.error(`Could not clean up SingletonLock for ${boutiqueId}:`, err.message);
+    // 1. Si le client existe déjà, le retourner immédiatement
+    if (this.clients.has(boutiqueId)) {
+      return this.clients.get(boutiqueId);
+    }
+
+    // 2. Si une initialisation est déjà en cours pour cette boutique, attendre qu'elle termine
+    if (this.initPromises.has(boutiqueId)) {
+      return await this.initPromises.get(boutiqueId);
+    }
+
+    // 3. Verrou d'initialisation unique
+    const initPromise = (async () => {
+      try {
+        // Nettoyer les verrous Puppeteer potentiels pour cette boutique
+        const lockPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}/SingletonLock`);
+        if (fs.existsSync(lockPath)) {
+          try {
+            fs.unlinkSync(lockPath);
+            console.log(`Cleaned up lingering WhatsApp Puppeteer SingletonLock for boutique ${boutiqueId}`);
+          } catch (err) {
+            console.error(`Could not clean up SingletonLock for ${boutiqueId}:`, err.message);
+          }
         }
-      }
 
-      const isMac = process.platform === 'darwin';
-      let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      let sparticuzArgs = [];
+        const isMac = process.platform === 'darwin';
+        let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+        let sparticuzArgs = [];
 
-      // 1. Try @sparticuz/chromium on Linux (Render / Docker / Vercel)
-      if (!executablePath && !isMac) {
-        try {
-          const chromium = require('@sparticuz/chromium');
-          executablePath = await chromium.executablePath();
-          sparticuzArgs = chromium.args || [];
-          console.log(`@sparticuz/chromium extracted runtime binary to: ${executablePath}`);
-        } catch (err) {
-          console.warn('@sparticuz/chromium resolution notice:', err.message);
+        // 1. Try @sparticuz/chromium on Linux (Render / Docker / Vercel)
+        if (!executablePath && !isMac) {
+          try {
+            const chromium = require('@sparticuz/chromium');
+            executablePath = await chromium.executablePath();
+            sparticuzArgs = chromium.args || [];
+            console.log(`@sparticuz/chromium extracted runtime binary to: ${executablePath}`);
+          } catch (err) {
+            console.warn('@sparticuz/chromium resolution notice:', err.message);
+          }
         }
-      }
 
-      // 2. Check standard Linux system Chrome / Chromium binaries
-      if (!executablePath && !isMac) {
-        const possibleLinuxPaths = [
-          '/usr/bin/google-chrome-stable',
-          '/usr/bin/google-chrome',
-          '/usr/bin/chromium-browser',
-          '/usr/bin/chromium',
-          '/opt/google/chrome/chrome'
+        // 2. Check standard Linux system Chrome / Chromium binaries
+        if (!executablePath && !isMac) {
+          const possibleLinuxPaths = [
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/opt/google/chrome/chrome'
+          ];
+          for (const p of possibleLinuxPaths) {
+            if (fs.existsSync(p)) {
+              executablePath = p;
+              console.log(`Detected Linux system Chrome at: ${p}`);
+              break;
+            }
+          }
+        }
+
+        // 3. Try Puppeteer's resolved executablePath
+        if (!executablePath) {
+          try {
+            const pPath = puppeteer.executablePath();
+            if (pPath && fs.existsSync(pPath)) {
+              executablePath = pPath;
+            }
+          } catch (e) {
+            console.warn('Puppeteer default executablePath not available:', e.message);
+          }
+        }
+
+        // 4. Verify executablePath exists at RUNTIME before passing to Puppeteer
+        if (executablePath && !fs.existsSync(executablePath)) {
+          console.warn(`Executable path "${executablePath}" not found at runtime. Falling back to default launcher.`);
+          executablePath = undefined;
+        }
+
+        if (executablePath) {
+          console.log(`Using validated Chrome binary for WhatsApp Puppeteer: ${executablePath}`);
+        } else {
+          console.log('No explicit executablePath verified. Using Puppeteer default browser launcher.');
+        }
+
+        const baseArgs = [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu',
+          '--disable-extensions',
+          '--disable-component-update',
+          '--disable-background-networking',
+          '--disable-background-timer-throttling',
+          '--disable-renderer-backgrounding',
+          '--disable-web-security',
+          '--allow-running-insecure-content'
         ];
-        for (const p of possibleLinuxPaths) {
-          if (fs.existsSync(p)) {
-            executablePath = p;
-            console.log(`Detected Linux system Chrome at: ${p}`);
-            break;
+        if (!isMac) baseArgs.push('--no-zygote');
+
+        const puppeteerArgs = Array.from(new Set([...baseArgs, ...sparticuzArgs]));
+
+        const client = new Client({
+          authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
+          webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html',
+          },
+          puppeteer: {
+            executablePath: executablePath || undefined,
+            headless: true,
+            bypassCSP: true,
+            args: puppeteerArgs
           }
-        }
-      }
+        });
 
-      // 3. Try Puppeteer's resolved executablePath
-      if (!executablePath) {
-        try {
-          const pPath = puppeteer.executablePath();
-          if (pPath && fs.existsSync(pPath)) {
-            executablePath = pPath;
+        const clientData = {
+          client,
+          status: 'INITIALIZING',
+          qrCodeUrl: null,
+          phoneConnected: null
+        };
+
+        this.clients.set(boutiqueId, clientData);
+
+        client.on('qr', async (qr) => {
+          console.log(`WhatsApp QR Code generated for boutique ${boutiqueId}`);
+          clientData.status = 'QR_READY';
+          try {
+            clientData.qrCodeUrl = await qrcode.toDataURL(qr);
+          } catch (err) {
+            console.error('Error generating QR code data URL', err);
           }
-        } catch (e) {
-          console.warn('Puppeteer default executablePath not available:', e.message);
-        }
+        });
+
+        client.on('ready', () => {
+          console.log(`WhatsApp Client is ready for boutique ${boutiqueId}`);
+          clientData.status = 'CONNECTED';
+          clientData.qrCodeUrl = null;
+          if (client.info && client.info.wid) {
+            clientData.phoneConnected = client.info.wid.user;
+          }
+        });
+
+        client.on('authenticated', () => {
+          console.log(`WhatsApp Authenticated for boutique ${boutiqueId}`);
+        });
+
+        client.on('auth_failure', msg => {
+          console.error(`WhatsApp Authentication failure for boutique ${boutiqueId}`, msg);
+          clientData.status = 'AUTH_FAILURE';
+        });
+
+        client.on('disconnected', (reason) => {
+          console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}`, reason);
+          clientData.status = 'DISCONNECTED';
+          clientData.phoneConnected = null;
+        });
+
+        console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
+        client.initialize().catch(err => {
+          console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);
+          clientData.status = 'ERROR';
+          clientData.qrCodeUrl = null;
+        });
+
+        return clientData;
+      } finally {
+        this.initPromises.delete(boutiqueId);
       }
+    })();
 
-      // 4. Verify executablePath exists at RUNTIME before passing to Puppeteer
-      if (executablePath && !fs.existsSync(executablePath)) {
-        console.warn(`Executable path "${executablePath}" not found at runtime. Falling back to default launcher.`);
-        executablePath = undefined;
-      }
-
-      if (executablePath) {
-        console.log(`Using validated Chrome binary for WhatsApp Puppeteer: ${executablePath}`);
-      } else {
-        console.log('No explicit executablePath verified. Using Puppeteer default browser launcher.');
-      }
-
-      const baseArgs = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-component-update',
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding'
-      ];
-      if (!isMac) baseArgs.push('--no-zygote');
-
-      const puppeteerArgs = Array.from(new Set([...baseArgs, ...sparticuzArgs]));
-
-      const client = new Client({
-        authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
-        webVersionCache: {
-          type: 'remote',
-          remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-        },
-        puppeteer: {
-          executablePath: executablePath || undefined,
-          headless: true,
-          args: puppeteerArgs
-        }
-      });
-
-      clientData = {
-        client,
-        status: 'INITIALIZING',
-        qrCodeUrl: null,
-        phoneConnected: null
-      };
-
-      this.clients.set(boutiqueId, clientData);
-
-      client.on('qr', async (qr) => {
-        console.log(`WhatsApp QR Code generated for boutique ${boutiqueId}`);
-        clientData.status = 'QR_READY';
-        try {
-          clientData.qrCodeUrl = await qrcode.toDataURL(qr);
-        } catch (err) {
-          console.error('Error generating QR code data URL', err);
-        }
-      });
-
-      client.on('ready', () => {
-        console.log(`WhatsApp Client is ready for boutique ${boutiqueId}`);
-        clientData.status = 'CONNECTED';
-        clientData.qrCodeUrl = null;
-        if (client.info && client.info.wid) {
-          clientData.phoneConnected = client.info.wid.user;
-        }
-      });
-
-      client.on('authenticated', () => {
-        console.log(`WhatsApp Authenticated for boutique ${boutiqueId}`);
-      });
-
-      client.on('auth_failure', msg => {
-        console.error(`WhatsApp Authentication failure for boutique ${boutiqueId}`, msg);
-        clientData.status = 'AUTH_FAILURE';
-      });
-
-      client.on('disconnected', (reason) => {
+    this.initPromises.set(boutiqueId, initPromise);
+    return await initPromise;
+  }
         console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}`, reason);
         clientData.status = 'DISCONNECTED';
         clientData.phoneConnected = null;

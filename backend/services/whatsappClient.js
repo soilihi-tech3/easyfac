@@ -46,15 +46,9 @@ class WhatsAppManager {
       }
 
       let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      if (!executablePath) {
-        try {
-          executablePath = puppeteer.executablePath();
-        } catch (e) {
-          console.warn('Puppeteer default executablePath not available:', e.message);
-        }
-      }
-
-      if (!executablePath || (!isMac && !fs.existsSync(executablePath))) {
+      
+      // 1. Check standard Linux system Chrome / Chromium binaries first
+      if (!executablePath && !isMac) {
         const possibleLinuxPaths = [
           '/usr/bin/google-chrome-stable',
           '/usr/bin/google-chrome',
@@ -71,8 +65,28 @@ class WhatsAppManager {
         }
       }
 
+      // 2. Try Puppeteer's resolved executablePath
+      if (!executablePath) {
+        try {
+          const pPath = puppeteer.executablePath();
+          if (pPath && fs.existsSync(pPath)) {
+            executablePath = pPath;
+          }
+        } catch (e) {
+          console.warn('Puppeteer default executablePath not available:', e.message);
+        }
+      }
+
+      // 3. Strictly verify executablePath exists at RUNTIME before passing to Puppeteer
+      if (executablePath && !fs.existsSync(executablePath)) {
+        console.warn(`Executable path "${executablePath}" not found at runtime. Falling back to default launcher.`);
+        executablePath = undefined;
+      }
+
       if (executablePath) {
-        console.log(`Using Chrome binary for WhatsApp Puppeteer: ${executablePath}`);
+        console.log(`Using validated Chrome binary for WhatsApp Puppeteer: ${executablePath}`);
+      } else {
+        console.log('No explicit executablePath verified. Using Puppeteer default browser launcher.');
       }
 
       const client = new Client({

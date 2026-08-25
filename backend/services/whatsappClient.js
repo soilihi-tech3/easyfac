@@ -133,7 +133,8 @@ class WhatsAppManager {
           qrMaxRetries: 10,
           userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           webVersionCache: {
-            type: 'local'
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html'
           },
           puppeteer: {
             executablePath: executablePath || undefined,

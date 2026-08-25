@@ -180,6 +180,10 @@ class WhatsAppManager {
 
         console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
         client.initialize().catch(err => {
+          if (err && err.message && err.message.includes('Execution context was destroyed')) {
+            console.warn(`WhatsApp client frame navigation reset for boutique ${boutiqueId}, continuing...`);
+            return;
+          }
           console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);
           clientData.status = 'ERROR';
           clientData.qrCodeUrl = null;
@@ -193,21 +197,6 @@ class WhatsAppManager {
 
     this.initPromises.set(boutiqueId, initPromise);
     return await initPromise;
-  }
-        console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}`, reason);
-        clientData.status = 'DISCONNECTED';
-        clientData.phoneConnected = null;
-      });
-
-      console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
-      client.initialize().catch(err => {
-        console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);
-        clientData.status = 'ERROR';
-        clientData.qrCodeUrl = null;
-      });
-    }
-
-    return clientData;
   }
 
   async getStatus(boutiqueId) {

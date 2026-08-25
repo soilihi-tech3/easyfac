@@ -35,14 +35,14 @@ class WhatsAppManager {
         '--no-first-run',
         '--disable-gpu',
         '--disable-extensions',
+        '--disable-component-update',
         '--disable-background-networking',
         '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-features=TranslateUI,BlinkGenPropertyTrees,site-per-process'
+        '--disable-renderer-backgrounding'
       ];
 
       if (!isMac) {
-        puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+        puppeteerArgs.push('--no-zygote');
       }
 
       let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
@@ -77,6 +77,10 @@ class WhatsAppManager {
 
       const client = new Client({
         authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
+        webVersionCache: {
+          type: 'remote',
+          remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        },
         puppeteer: {
           executablePath: executablePath || undefined,
           headless: true,

@@ -117,7 +117,7 @@ class WhatsAppManager {
           '--disable-web-security',
           '--allow-running-insecure-content',
           '--renderer-process-limit=1',
-          '--js-flags=--max-old-space-size=128',
+          '--js-flags=--max-old-space-size=96',
           '--disable-software-rasterizer',
           '--memory-pressure-off',
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'

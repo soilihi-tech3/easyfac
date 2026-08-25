@@ -94,6 +94,7 @@ export default function FlyerGenerator() {
   // Template State ('template1' | 'template2' | 'template3' | 'custom')
   const [templateId, setTemplateId] = useState('template1');
   const [customBgImage, setCustomBgImage] = useState(null);
+  const [previewZoom, setPreviewZoom] = useState('fit');
 
   // Airline Selection & Sizing State
   const [selectedAirlineKey, setSelectedAirlineKey] = useState('custom');
@@ -588,15 +589,33 @@ export default function FlyerGenerator() {
         {/* Right Side: Realtime HD Visual Preview Render Box */}
         <div className="flyer-preview-column">
           <div className="preview-header-bar">
-            <span>Aperçu en temps réel — Modèle: <b>{templateId.toUpperCase()}</b></span>
-            <button className="btn-quick-download" onClick={handleDownloadJPEG} disabled={downloading}>
-              <Download size={14} /> JPEG
-            </button>
+            <span>Aperçu HD — <b>{templateId.toUpperCase()}</b></span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <select
+                className="flyer-zoom-select"
+                value={previewZoom}
+                onChange={e => setPreviewZoom(e.target.value)}
+                title="Taille d'affichage de l'aperçu"
+              >
+                <option value="fit">📱 Adapté à l'écran</option>
+                <option value="100">🔍 100% HD (Scrollbar)</option>
+                <option value="75">🔍 75% Zoom</option>
+                <option value="50">🔍 50% Zoom</option>
+              </select>
+              <button className="btn-quick-download" onClick={handleDownloadJPEG} disabled={downloading}>
+                <Download size={14} /> JPEG
+              </button>
+            </div>
           </div>
 
-          <div className="flyer-frame-wrapper">
-            {/* The Actual Render Canvas Card */}
-            <div className={`flyer-artboard template-theme-${templateId}`} ref={flyerRef}>
+          <div className="flyer-scroll-hint-banner">
+            <span>↔️ <b>Barre de Défilement Active</b> : Faites glisser de gauche à droite ou utilisez la barre ci-dessous pour voir l'intégralité du flyer HD.</span>
+          </div>
+
+          <div className={`flyer-frame-wrapper zoom-mode-${previewZoom}`}>
+            <div className="flyer-artboard-scaler-container">
+              {/* The Actual Render Canvas Card */}
+              <div className={`flyer-artboard template-theme-${templateId}`} ref={flyerRef}>
 
               {/* Background Image / Render Graphic */}
               <div className="flyer-bg-overlay">
@@ -807,6 +826,7 @@ export default function FlyerGenerator() {
 
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

@@ -124,8 +124,7 @@ class WhatsAppManager {
         const client = new Client({
           authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
           webVersionCache: {
-            type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html',
+            type: 'local'
           },
           puppeteer: {
             executablePath: executablePath || undefined,
@@ -180,8 +179,9 @@ class WhatsAppManager {
 
         console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
         client.initialize().catch(err => {
-          if (err && err.message && err.message.includes('Execution context was destroyed')) {
-            console.warn(`WhatsApp client frame navigation reset for boutique ${boutiqueId}, continuing...`);
+          const msg = err ? String(err.message || err) : '';
+          if (msg.includes('Execution context was destroyed') || msg.includes('Navigating frame was detached') || msg.includes('LifecycleWatcher disposed')) {
+            console.warn(`WhatsApp client frame navigation reset for boutique ${boutiqueId}, continuing background loading...`);
             return;
           }
           console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);

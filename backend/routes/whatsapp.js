@@ -6,10 +6,11 @@ const whatsappManager = require('../services/whatsappClient');
 // Use multer to handle memory storage for the uploaded PDF
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
   if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
-  res.json(whatsappManager.getStatus(boutiqueId));
+  const statusData = await whatsappManager.getStatus(boutiqueId);
+  res.json(statusData);
 });
 
 router.post('/logout', async (req, res) => {

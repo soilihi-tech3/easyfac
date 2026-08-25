@@ -16,7 +16,7 @@ class WhatsAppManager {
   }
 
   // Obtenir ou initialiser un client pour une boutique
-  getClientData(boutiqueId) {
+  async getClientData(boutiqueId) {
     if (!boutiqueId) throw new Error("boutiqueId est requis");
     
     let clientData = this.clients.get(boutiqueId);
@@ -33,27 +33,22 @@ class WhatsAppManager {
       }
 
       const isMac = process.platform === 'darwin';
-      const puppeteerArgs = [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--disable-gpu',
-        '--disable-extensions',
-        '--disable-component-update',
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding'
-      ];
+      let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      let sparticuzArgs = [];
 
-      if (!isMac) {
-        puppeteerArgs.push('--no-zygote');
+      // 1. Try @sparticuz/chromium on Linux (Render / Docker / Vercel)
+      if (!executablePath && !isMac) {
+        try {
+          const chromium = require('@sparticuz/chromium');
+          executablePath = await chromium.executablePath();
+          sparticuzArgs = chromium.args || [];
+          console.log(`@sparticuz/chromium extracted runtime binary to: ${executablePath}`);
+        } catch (err) {
+          console.warn('@sparticuz/chromium resolution notice:', err.message);
+        }
       }
 
-      let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-      
-      // 1. Check standard Linux system Chrome / Chromium binaries first
+      // 2. Check standard Linux system Chrome / Chromium binaries
       if (!executablePath && !isMac) {
         const possibleLinuxPaths = [
           '/usr/bin/google-chrome-stable',
@@ -71,7 +66,7 @@ class WhatsAppManager {
         }
       }
 
-      // 2. Try Puppeteer's resolved executablePath
+      // 3. Try Puppeteer's resolved executablePath
       if (!executablePath) {
         try {
           const pPath = puppeteer.executablePath();
@@ -83,7 +78,7 @@ class WhatsAppManager {
         }
       }
 
-      // 3. Strictly verify executablePath exists at RUNTIME before passing to Puppeteer
+      // 4. Verify executablePath exists at RUNTIME before passing to Puppeteer
       if (executablePath && !fs.existsSync(executablePath)) {
         console.warn(`Executable path "${executablePath}" not found at runtime. Falling back to default launcher.`);
         executablePath = undefined;
@@ -94,6 +89,23 @@ class WhatsAppManager {
       } else {
         console.log('No explicit executablePath verified. Using Puppeteer default browser launcher.');
       }
+
+      const baseArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu',
+        '--disable-extensions',
+        '--disable-component-update',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding'
+      ];
+      if (!isMac) baseArgs.push('--no-zygote');
+
+      const puppeteerArgs = Array.from(new Set([...baseArgs, ...sparticuzArgs]));
 
       const client = new Client({
         authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
@@ -162,12 +174,12 @@ class WhatsAppManager {
     return clientData;
   }
 
-  getStatus(boutiqueId) {
+  async getStatus(boutiqueId) {
     if (!boutiqueId) return { status: 'ERROR', message: "boutiqueId requis" };
     let clientData = this.clients.get(boutiqueId);
     if (!clientData) {
       try {
-        clientData = this.getClientData(boutiqueId);
+        clientData = await this.getClientData(boutiqueId);
       } catch (e) {
         return { status: 'ERROR', message: e.message };
       }
@@ -203,11 +215,11 @@ class WhatsAppManager {
 
   async reconnect(boutiqueId) {
     await this.logout(boutiqueId);
-    return this.getClientData(boutiqueId);
+    return await this.getClientData(boutiqueId);
   }
 
   async sendText(boutiqueId, phone, message) {
-    const clientData = this.getClientData(boutiqueId);
+    const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
       throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
@@ -217,7 +229,7 @@ class WhatsAppManager {
   }
 
   async sendPdf(boutiqueId, phone, pdfBuffer, filename, caption = '') {
-    const clientData = this.getClientData(boutiqueId);
+    const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
       throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }

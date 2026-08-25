@@ -4,10 +4,10 @@ import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, g
 import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 const MODES_PAIEMENT = [
-  { value: 'cash',         label: 'Cash' },
+  { value: 'cash', label: 'Cash' },
   { value: 'orange_money', label: 'Orange Money' },
-  { value: 'wave',         label: 'Wave' },
-  { value: 'mixte',        label: 'Mixte' },
+  { value: 'wave', label: 'Wave' },
+  { value: 'mixte', label: 'Mixte' },
 ];
 
 const emptyArticle = () => ({ id: uuid(), nom: '', quantite: 1, prixUnitaire: 0, total: 0 });
@@ -25,7 +25,7 @@ import { createPortal } from 'react-dom';
 export default function FactureModal({ facture, onClose, onSave, prixKg, devise }) {
   const { user } = useAuth();
   const [defaultVoyageId, setDefaultVoyageId] = useState('');
-  
+
   const [form, setForm] = useState(facture ? {
     ...facture,
     payerComores: facture.payerComores || 0,
@@ -74,7 +74,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     const init = async () => {
       try {
         const [allVoyages, allClients, params] = await Promise.all([
-          getVoyages(), 
+          getVoyages(),
           getClients(),
           import('../../data/store').then(m => m.getParametres())
         ]);
@@ -82,13 +82,13 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
         setClients(allClients);
         const defId = params.config?.voyageDefautId || '';
         setDefaultVoyageId(defId);
-        
+
         if (!facture) {
           const num = await getNextNumero();
-          setForm(f => ({ 
-            ...f, 
-            numero: num, 
-            prixKg: prixKg || 6000, 
+          setForm(f => ({
+            ...f,
+            numero: num,
+            prixKg: prixKg || 6000,
             voyageId: defId || (allVoyages.length > 0 ? allVoyages[0].id : '')
           }));
         }
@@ -103,9 +103,9 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   useEffect(() => {
     if (clientSearch.length >= 2) {
       const s = clientSearch.toLowerCase();
-      const results = clients.filter(c => 
-        c.nom?.toLowerCase().includes(s) || 
-        c.prenom?.toLowerCase().includes(s) || 
+      const results = clients.filter(c =>
+        c.nom?.toLowerCase().includes(s) ||
+        c.prenom?.toLowerCase().includes(s) ||
         c.telephone?.includes(s)
       ).slice(0, 6);
       setClientResults(results);
@@ -121,7 +121,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     setClientSearch('');
   };
 
-  const updateExp  = (field, value) => setForm(f => ({ ...f, expediteur:  { ...f.expediteur,  [field]: value, id: undefined } }));
+  const updateExp = (field, value) => setForm(f => ({ ...f, expediteur: { ...f.expediteur, [field]: value, id: undefined } }));
   const updateDest = (field, value) => setForm(f => ({ ...f, destinataire: { ...f.destinataire, [field]: value, id: undefined } }));
 
   const updateArticle = (id, field, value) => {
@@ -183,8 +183,8 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     // On plafonne le montant payé au total de la facture pour ne pas fausser la comptabilité
     const numPaye = parseFloat(form.montantPaye) || 0;
     const cappedPaye = Math.min(numPaye, form.montantTotal);
-    const data = { 
-      ...form, 
+    const data = {
+      ...form,
       montantPaye: cappedPaye,
       montantComores: parseFloat(form.montantComores) || 0
     };
@@ -226,343 +226,343 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* N° + Voyage */}
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Numéro de facture</label>
-              <input className="form-input" disabled value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Voyage associé</label>
-              <select 
-                className="form-input form-select" 
-                value={form.voyageId} 
-                onChange={e => setForm(f => ({ ...f, voyageId: e.target.value }))}
-                disabled={user?.role === 'employee' || !!defaultVoyageId}
-              >
-                <option value="">Aucun voyage</option>
-                {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Client Search */}
-          <div className="info-box" style={{ position: 'relative' }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-              <div className="flex items-center gap-2">
-                <Search size={14} style={{ color: 'var(--text-muted)' }} />
-                <span className="section-label" style={{ margin: 0 }}>Recherche client existant</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${clientTarget === 'expediteur' ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => openClientSearch('expediteur')}
-                >
-                  Pour expéditeur
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${clientTarget === 'destinataire' ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => openClientSearch('destinataire')}
-                >
-                  Pour destinataire
-                </button>
-              </div>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <input
-                ref={searchRef}
-                className="form-input"
-                placeholder="Tapez un nom ou téléphone..."
-                value={clientSearch}
-                onChange={e => setClientSearch(e.target.value)}
-              />
-              {showClientDropdown && clientResults.length > 0 && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                  background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
-                  borderRadius: 10, zIndex: 100, boxShadow: 'var(--shadow-lg)', overflow: 'hidden',
-                }}>
-                  {clientResults.map(c => (
-                    <div
-                      key={c.id}
-                      onClick={() => selectClient(c)}
-                      style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13.5, display: 'flex', gap: 12, alignItems: 'center', transition: 'background 0.12s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card)'}
-                      onMouseLeave={e => e.currentTarget.style.background = ''}
-                    >
-                      <div style={{
-                        width: 30, height: 30, borderRadius: 8,
-                        background: 'var(--brand-muted)', color: 'var(--brand)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 800,
-                      }}>
-                        {c.prenom?.[0]}{c.nom?.[0]}
-                      </div>
-                      <span style={{ fontWeight: 600 }}>{c.prenom} {c.nom}</span>
-                      <span style={{ color: 'var(--text-muted)' }}>{c.telephone}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Expéditeur + Destinataire */}
-          <div className="grid-2" style={{ gap: 20 }}>
-            <div>
-              <SectionHead Icon={Send} label="Expéditeur" color="var(--brand)" />
-              {errors.exp && <div className="alert alert-error" style={{ marginBottom: 12, padding: '8px 12px', fontSize: 12 }}>{errors.exp}</div>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Prénom *</label>
-                    <input className="form-input" value={form.expediteur?.prenom || ''} onChange={e => updateExp('prenom', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nom *</label>
-                    <input className="form-input" value={form.expediteur?.nom || ''} onChange={e => updateExp('nom', e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Téléphone</label>
-                  <div style={{ display: 'flex' }}>
-                    <select 
-                      className="form-input" 
-                      style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
-                      value={extractPhoneParts(form.expediteur?.telephone).prefix}
-                      onChange={e => updateExp('telephone', e.target.value + extractPhoneParts(form.expediteur?.telephone).number)}
-                    >
-                      <option value="+221">+221</option>
-                      <option value="+269">+269</option>
-                      <option value="+33">+33</option>
-                    </select>
-                    <input 
-                      className="form-input" 
-                      style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
-                      value={extractPhoneParts(form.expediteur?.telephone).number} 
-                      onChange={e => updateExp('telephone', extractPhoneParts(form.expediteur?.telephone).prefix + e.target.value.replace(/\D/g, ''))} 
-                      placeholder="Numéro sans le code"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div>
-              <SectionHead Icon={Package} label="Destinataire" color="var(--info)" />
-              {errors.dest && <div className="alert alert-error" style={{ marginBottom: 12, padding: '8px 12px', fontSize: 12 }}>{errors.dest}</div>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Prénom *</label>
-                    <input className="form-input" value={form.destinataire?.prenom || ''} onChange={e => updateDest('prenom', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Nom *</label>
-                    <input className="form-input" value={form.destinataire?.nom || ''} onChange={e => updateDest('nom', e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Téléphone</label>
-                  <div style={{ display: 'flex' }}>
-                    <select 
-                      className="form-input" 
-                      style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
-                      value={extractPhoneParts(form.destinataire?.telephone).prefix}
-                      onChange={e => updateDest('telephone', e.target.value + extractPhoneParts(form.destinataire?.telephone).number)}
-                    >
-                      <option value="+221">+221</option>
-                      <option value="+269">+269</option>
-                      <option value="+33">+33</option>
-                    </select>
-                    <input 
-                      className="form-input" 
-                      style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }} 
-                      value={extractPhoneParts(form.destinataire?.telephone).number} 
-                      onChange={e => updateDest('telephone', extractPhoneParts(form.destinataire?.telephone).prefix + e.target.value.replace(/\D/g, ''))} 
-                      placeholder="Numéro sans le code"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Articles */}
-          <div>
-            <SectionHead Icon={Package} label="Articles & Transport" color="var(--warning)" />
-            {errors.articles && <div className="alert alert-error" style={{ marginBottom: 12 }}>{errors.articles}</div>}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div className="article-header-grid">
-                {['Article', 'Qté', 'Prix unitaire', 'Total', ''].map((h, i) => (
-                  <div key={i} style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</div>
-                ))}
-              </div>
-              {form.articles.map(a => (
-                <div key={a.id} className="article-grid">
-                  <div className="article-col-nom">
-                    <span className="mobile-only-label">Article</span>
-                    <input className="form-input" placeholder="Nom de l'article" value={a.nom} onChange={e => updateArticle(a.id, 'nom', e.target.value)} />
-                  </div>
-                  <div className="article-col-qte">
-                    <span className="mobile-only-label">Qté</span>
-                    <input className="form-input" type="number" min="1" value={a.quantite} onChange={e => updateArticle(a.id, 'quantite', e.target.value)} />
-                  </div>
-                  <div className="article-col-pu">
-                    <span className="mobile-only-label">Prix unitaire</span>
-                    <input className="form-input" type="number" min="0" value={a.prixUnitaire} onChange={e => updateArticle(a.id, 'prixUnitaire', e.target.value)} />
-                  </div>
-                  <div className="article-col-total">
-                    <span className="mobile-only-label">Total</span>
-                    <div style={{
-                      background: 'var(--brand-muted)', color: 'var(--brand)',
-                      padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, textAlign: 'right',
-                    }}>
-                      {formatCurrency(a.total, devise)}
-                    </div>
-                  </div>
-                  <div className="article-col-action">
-                    <button className="btn-icon danger" onClick={() => removeArticle(a.id)}>
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={addArticle}>
-                <Plus size={13} /> Ajouter un article
-              </button>
-            </div>
-
-            {/* Transport / Fret */}
-            <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
-              <div className="transport-grid">
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Poids total du colis (kg)</label>
-                  <input className="form-input" type="number" min="0" step="0.5" value={form.poidsTotal} onChange={e => updateFret('poidsTotal', e.target.value)} />
-                </div>
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label">Prix au kg ({devise})</label>
-                  <input className="form-input" type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
-                </div>
-                <div className="transport-total-col">
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Frais de transport</div>
-                  <div style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--brand)' }}>
-                    {formatCurrency(form.fraisFret, devise)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Paiement */}
-          <div className="info-box">
-            <SectionHead Icon={CreditCard} label="Paiement" color="var(--success)" />
-            <div className="grid-2" style={{ gap: 16 }}>
+            <div className="grid-2">
               <div className="form-group">
-                <label className="form-label">Mode de paiement</label>
-                <select className="form-input form-select" value={form.modePaiement} onChange={e => setForm(f => ({ ...f, modePaiement: e.target.value }))}>
-                  {MODES_PAIEMENT.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                <label className="form-label">Numéro de facture</label>
+                <input className="form-input" disabled value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Voyage associé</label>
+                <select
+                  className="form-input form-select"
+                  value={form.voyageId}
+                  onChange={e => setForm(f => ({ ...f, voyageId: e.target.value }))}
+                  disabled={user?.role === 'employee' || !!defaultVoyageId}
+                >
+                  <option value="">Aucun voyage</option>
+                  {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
                 </select>
               </div>
-              <div className="form-group">
-                <label className="form-label">Montant payé ({devise})</label>
-                <input className="form-input" type="number" min="0" value={form.montantPaye} onChange={e => handlePaye(e.target.value)} />
-              </div>
             </div>
-            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
-              <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Total facture</span>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: 'var(--brand)' }}>
-                {formatCurrency(form.montantTotal, devise)}
-              </span>
-            </div>
-            
-            {/* Affichage du Reste à payer (si le client n'a pas tout payé) */}
-            {form.montantTotal - (parseFloat(form.montantPaye) || 0) > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--danger-muted)', borderRadius: 10 }}>
-                  <span style={{ color: 'var(--danger)', fontSize: 13 }}>Reste à payer</span>
-                  <span style={{ fontWeight: 700, color: 'var(--danger)', fontSize: 14 }}>{formatCurrency(form.montantTotal - (parseFloat(form.montantPaye) || 0), devise)}</span>
-                </div>
-                <div className="form-group" style={{ marginTop: 12 }}>
-                  <label className="form-label">Date d'échéance de paiement</label>
-                  <input 
-                    type="date" 
-                    className="form-input" 
-                    value={form.dateLimite || ''} 
-                    onChange={e => setForm(f => ({ ...f, dateLimite: e.target.value }))}
-                  />
-                </div>
-              </div>
-            )}
 
-            {/* Affichage de la monnaie À rendre (si le client donne plus) */}
-            {(parseFloat(form.montantPaye) || 0) - form.montantTotal > 0 && (
-              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--success-muted)', borderRadius: 10, border: '1px solid var(--success)' }}>
-                <span style={{ color: 'var(--success)', fontSize: 13, fontWeight: 600 }}>À rendre (monnaie)</span>
-                <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15 }}>{formatCurrency((parseFloat(form.montantPaye) || 0) - form.montantTotal, devise)}</span>
+            {/* Client Search */}
+            <div className="info-box" style={{ position: 'relative' }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+                <div className="flex items-center gap-2">
+                  <Search size={14} style={{ color: 'var(--text-muted)' }} />
+                  <span className="section-label" style={{ margin: 0 }}>Recherche client existant</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${clientTarget === 'expediteur' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => openClientSearch('expediteur')}
+                  >
+                    Pour expéditeur
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${clientTarget === 'destinataire' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => openClientSearch('destinataire')}
+                  >
+                    Pour destinataire
+                  </button>
+                </div>
               </div>
-            )}
-             {/* Options additionnelles : Payer aux Comores */}
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12, padding: '14px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontWeight: 600, fontSize: 13.5 }}>
+              <div style={{ position: 'relative' }}>
                 <input
-                  type="checkbox"
-                  checked={!!form.payerComores}
-                  onChange={e => {
-                    const checked = e.target.checked;
-                    const remaining = Math.max(0, form.montantTotal - (parseFloat(form.montantPaye) || 0));
-                    setForm(f => ({
-                      ...f,
-                      payerComores: checked ? 1 : 0,
-                      montantComores: checked ? String(remaining) : '0'
-                    }));
-                  }}
-                  style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--brand)' }}
+                  ref={searchRef}
+                  className="form-input"
+                  placeholder="Tapez un nom ou téléphone..."
+                  value={clientSearch}
+                  onChange={e => setClientSearch(e.target.value)}
                 />
-                <span style={{ color: 'var(--text-primary)' }}>Payer le reste aux Comores</span>
-              </label>
+                {showClientDropdown && clientResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                    background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)',
+                    borderRadius: 10, zIndex: 100, boxShadow: 'var(--shadow-lg)', overflow: 'hidden',
+                  }}>
+                    {clientResults.map(c => (
+                      <div
+                        key={c.id}
+                        onClick={() => selectClient(c)}
+                        style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13.5, display: 'flex', gap: 12, alignItems: 'center', transition: 'background 0.12s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card)'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                      >
+                        <div style={{
+                          width: 30, height: 30, borderRadius: 8,
+                          background: 'var(--brand-muted)', color: 'var(--brand)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 800,
+                        }}>
+                          {c.prenom?.[0]}{c.nom?.[0]}
+                        </div>
+                        <span style={{ fontWeight: 600 }}>{c.prenom} {c.nom}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{c.telephone}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-              {!!form.payerComores && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
-                  <div className="form-group">
-                    <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Montant à payer aux Comores ({devise})</label>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={form.montantComores}
-                        onChange={e => {
-                          const val = e.target.value;
-                          // Allow empty string, decimals, or numbers
-                          if (val === '' || /^[0-9]*\.?[0-9]*$/.test(val)) {
-                            setForm(f => ({ ...f, montantComores: val }));
-                          }
-                        }}
-                        style={{ paddingRight: 60 }}
-                      />
-                      <span style={{ position: 'absolute', right: 14, color: 'var(--text-muted)', fontSize: 12, fontWeight: 700 }}>
-                        {devise}
-                      </span>
+            {/* Expéditeur + Destinataire */}
+            <div className="grid-2" style={{ gap: 20 }}>
+              <div>
+                <SectionHead Icon={Send} label="Expéditeur" color="var(--brand)" />
+                {errors.exp && <div className="alert alert-error" style={{ marginBottom: 12, padding: '8px 12px', fontSize: 12 }}>{errors.exp}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Prénom *</label>
+                      <input className="form-input" value={form.expediteur?.prenom || ''} onChange={e => updateExp('prenom', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Nom *</label>
+                      <input className="form-input" value={form.expediteur?.nom || ''} onChange={e => updateExp('nom', e.target.value)} />
                     </div>
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Téléphone</label>
+                    <div style={{ display: 'flex' }}>
+                      <select
+                        className="form-input"
+                        style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                        value={extractPhoneParts(form.expediteur?.telephone).prefix}
+                        onChange={e => updateExp('telephone', e.target.value + extractPhoneParts(form.expediteur?.telephone).number)}
+                      >
+                        <option value="+221">+221</option>
+                        <option value="+269">+269</option>
+                        <option value="+33">+33</option>
+                      </select>
+                      <input
+                        className="form-input"
+                        style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                        value={extractPhoneParts(form.expediteur?.telephone).number}
+                        onChange={e => updateExp('telephone', extractPhoneParts(form.expediteur?.telephone).prefix + e.target.value.replace(/\D/g, ''))}
+                        placeholder="Numéro sans le code"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <SectionHead Icon={Package} label="Destinataire" color="var(--info)" />
+                {errors.dest && <div className="alert alert-error" style={{ marginBottom: 12, padding: '8px 12px', fontSize: 12 }}>{errors.dest}</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="grid-2">
+                    <div className="form-group">
+                      <label className="form-label">Prénom *</label>
+                      <input className="form-input" value={form.destinataire?.prenom || ''} onChange={e => updateDest('prenom', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Nom *</label>
+                      <input className="form-input" value={form.destinataire?.nom || ''} onChange={e => updateDest('nom', e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Téléphone</label>
+                    <div style={{ display: 'flex' }}>
+                      <select
+                        className="form-input"
+                        style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                        value={extractPhoneParts(form.destinataire?.telephone).prefix}
+                        onChange={e => updateDest('telephone', e.target.value + extractPhoneParts(form.destinataire?.telephone).number)}
+                      >
+                        <option value="+221">+221</option>
+                        <option value="+269">+269</option>
+                        <option value="+33">+33</option>
+                      </select>
+                      <input
+                        className="form-input"
+                        style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                        value={extractPhoneParts(form.destinataire?.telephone).number}
+                        onChange={e => updateDest('telephone', extractPhoneParts(form.destinataire?.telephone).prefix + e.target.value.replace(/\D/g, ''))}
+                        placeholder="Numéro sans le code"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                  {devise !== 'KMF' && (
-                    <>
-                      <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--brand-muted)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', gap: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Equivalent en Franc Comorien (KMF)</span>
-                        <strong style={{ fontSize: 14, color: 'var(--brand)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
-                          {formatCurrency((parseFloat(form.montantComores) || 0) * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
-                        </strong>
+            {/* Articles */}
+            <div>
+              <SectionHead Icon={Package} label="Articles & Transport" color="var(--warning)" />
+              {errors.articles && <div className="alert alert-error" style={{ marginBottom: 12 }}>{errors.articles}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="article-header-grid">
+                  {['Article', 'Qté', 'Prix unitaire', 'Total', ''].map((h, i) => (
+                    <div key={i} style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</div>
+                  ))}
+                </div>
+                {form.articles.map(a => (
+                  <div key={a.id} className="article-grid">
+                    <div className="article-col-nom">
+                      <span className="mobile-only-label">Article</span>
+                      <input className="form-input" placeholder="Nom de l'article" value={a.nom} onChange={e => updateArticle(a.id, 'nom', e.target.value)} />
+                    </div>
+                    <div className="article-col-qte">
+                      <span className="mobile-only-label">Qté</span>
+                      <input className="form-input" type="number" min="1" value={a.quantite} onChange={e => updateArticle(a.id, 'quantite', e.target.value)} />
+                    </div>
+                    <div className="article-col-pu">
+                      <span className="mobile-only-label">Prix unitaire</span>
+                      <input className="form-input" type="number" min="0" value={a.prixUnitaire} onChange={e => updateArticle(a.id, 'prixUnitaire', e.target.value)} />
+                    </div>
+                    <div className="article-col-total">
+                      <span className="mobile-only-label">Total</span>
+                      <div style={{
+                        background: 'var(--brand-muted)', color: 'var(--brand)',
+                        padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, textAlign: 'right',
+                      }}>
+                        {formatCurrency(a.total, devise)}
                       </div>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                        Taux de conversion appliqué : 1 {devise} = {devise === 'EUR' ? '491.97' : '0.75'} KMF
-                      </p>
-                    </>
-                  )}
+                    </div>
+                    <div className="article-col-action">
+                      <button className="btn-icon danger" onClick={() => removeArticle(a.id)}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={addArticle}>
+                  <Plus size={13} /> Ajouter un article
+                </button>
+              </div>
+
+              {/* Transport / Fret */}
+              <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
+                <div className="transport-grid">
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Poids total du colis (kg)</label>
+                    <input className="form-input" type="number" min="0" step="0.5" value={form.poidsTotal} onChange={e => updateFret('poidsTotal', e.target.value)} />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">Prix au kg ({devise})</label>
+                    <input className="form-input" type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
+                  </div>
+                  <div className="transport-total-col">
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Frais de transport</div>
+                    <div style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--brand)' }}>
+                      {formatCurrency(form.fraisFret, devise)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Paiement */}
+            <div className="info-box">
+              <SectionHead Icon={CreditCard} label="Paiement" color="var(--success)" />
+              <div className="grid-2" style={{ gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Mode de paiement</label>
+                  <select className="form-input form-select" value={form.modePaiement} onChange={e => setForm(f => ({ ...f, modePaiement: e.target.value }))}>
+                    {MODES_PAIEMENT.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Montant payé ({devise})</label>
+                  <input className="form-input" type="number" min="0" value={form.montantPaye} onChange={e => handlePaye(e.target.value)} />
+                </div>
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
+                <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Total facture</span>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: 'var(--brand)' }}>
+                  {formatCurrency(form.montantTotal, devise)}
+                </span>
+              </div>
+
+              {/* Affichage du Reste à payer (si le client n'a pas tout payé) */}
+              {form.montantTotal - (parseFloat(form.montantPaye) || 0) > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--danger-muted)', borderRadius: 10 }}>
+                    <span style={{ color: 'var(--danger)', fontSize: 13 }}>Reste à payer</span>
+                    <span style={{ fontWeight: 700, color: 'var(--danger)', fontSize: 14 }}>{formatCurrency(form.montantTotal - (parseFloat(form.montantPaye) || 0), devise)}</span>
+                  </div>
+                  <div className="form-group" style={{ marginTop: 12 }}>
+                    <label className="form-label">Date d'échéance de paiement</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={form.dateLimite || ''}
+                      onChange={e => setForm(f => ({ ...f, dateLimite: e.target.value }))}
+                    />
+                  </div>
                 </div>
               )}
+
+              {/* Affichage de la monnaie À rendre (si le client donne plus) */}
+              {(parseFloat(form.montantPaye) || 0) - form.montantTotal > 0 && (
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--success-muted)', borderRadius: 10, border: '1px solid var(--success)' }}>
+                  <span style={{ color: 'var(--success)', fontSize: 13, fontWeight: 600 }}>À rendre (monnaie)</span>
+                  <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15 }}>{formatCurrency((parseFloat(form.montantPaye) || 0) - form.montantTotal, devise)}</span>
+                </div>
+              )}
+              {/* Options additionnelles : Payer aux Comores */}
+              <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12, padding: '14px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontWeight: 600, fontSize: 13.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!form.payerComores}
+                    onChange={e => {
+                      const checked = e.target.checked;
+                      const remaining = Math.max(0, form.montantTotal - (parseFloat(form.montantPaye) || 0));
+                      setForm(f => ({
+                        ...f,
+                        payerComores: checked ? 1 : 0,
+                        montantComores: checked ? String(remaining) : '0'
+                      }));
+                    }}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--brand)' }}
+                  />
+                  <span style={{ color: 'var(--text-primary)' }}>Payer le reste aux Comores</span>
+                </label>
+
+                {!!form.payerComores && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
+                    <div className="form-group">
+                      <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Montant à payer aux Comores ({devise})</label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={form.montantComores}
+                          onChange={e => {
+                            const val = e.target.value;
+                            // Allow empty string, decimals, or numbers
+                            if (val === '' || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                              setForm(f => ({ ...f, montantComores: val }));
+                            }
+                          }}
+                          style={{ paddingRight: 60 }}
+                        />
+                        <span style={{ position: 'absolute', right: 14, color: 'var(--text-muted)', fontSize: 12, fontWeight: 700 }}>
+                          {devise}
+                        </span>
+                      </div>
+                    </div>
+
+                    {devise !== 'KMF' && (
+                      <>
+                        <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--brand-muted)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', gap: 10 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Equivalent en Franc Comorien (KMF)</span>
+                          <strong style={{ fontSize: 14, color: 'var(--brand)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
+                            {formatCurrency((parseFloat(form.montantComores) || 0) * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
+                          </strong>
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                          Taux de conversion appliqué : 1 {devise} = {devise === 'EUR' ? '491.97' : '0.75'} KMF
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
           </div>
         )}
 

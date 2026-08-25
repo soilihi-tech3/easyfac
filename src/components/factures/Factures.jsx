@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
 import FactureModal from './FactureModal';
 import ReceiptModal from './ReceiptModal';
+import Pagination from '../common/Pagination';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -34,6 +35,8 @@ export default function Factures() {
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
   const [voyages, setVoyages] = useState(() => getVoyagesCache());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [loading, setLoading] = useState(() => {
     return getFacturesCache().length === 0;
   });
@@ -478,85 +481,153 @@ export default function Factures() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={13} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
-              ) : factures.map(f => (
-                <tr key={f.id}>
-                  <td>
-                    <code
-                      style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}
-                      onClick={() => openView(f)}
-                    >
-                      {f.numero}
-                    </code>
-                  </td>
-                  <td style={{ fontWeight: 500 }}>{f.expediteur?.prenom} {f.expediteur?.nom}</td>
-                  <td style={{ color: 'var(--text-secondary)' }}>{f.destinataire?.prenom} {f.destinataire?.nom}</td>
-                  <td><span className="badge badge-info" style={{ fontSize: 10 }}>{getVoyageName(f.voyageId)}</span></td>
-                  <td>
-                    {f.payerComores ? (
-                      Number(f.montantPaye || 0) > 0 ? (
-                        <span className="badge badge-purple" style={{ fontSize: 10, background: 'linear-gradient(135deg, var(--info-muted) 0%, var(--purple-muted) 100%)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)' }}>Sen-Com</span>
+              ) : (() => {
+                const s = search.toLowerCase();
+                const filteredFactures = factures.filter(f => {
+                  const matchSearch = !search || (
+                    f.numero?.toLowerCase().includes(s) ||
+                    `${f.expediteur?.prenom || ''} ${f.expediteur?.nom || ''}`.toLowerCase().includes(s) ||
+                    `${f.destinataire?.prenom || ''} ${f.destinataire?.nom || ''}`.toLowerCase().includes(s) ||
+                    f.expediteur?.telephone?.includes(s) ||
+                    f.destinataire?.telephone?.includes(s)
+                  );
+                  const matchStatut = !filterStatut || f.statut === filterStatut;
+                  const matchVoyage = !filterVoyage || f.voyageId === filterVoyage;
+                  const matchPays = !filterPays || (
+                    filterPays === 'senegal' ? !f.payerComores :
+                    filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
+                    filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
+                  );
+                  const matchOverdue = !filterOverdue || (f.montantTotal - f.montantPaye > 0);
+
+                  let matchMoisAnnee = true;
+                  if (filterMois !== '' || filterAnnee !== '') {
+                    const d = new Date(f.createdAt);
+                    if (filterMois !== '' && d.getMonth() !== parseInt(filterMois)) matchMoisAnnee = false;
+                    if (filterAnnee !== '' && d.getFullYear() !== parseInt(filterAnnee)) matchMoisAnnee = false;
+                  }
+
+                  return matchSearch && matchStatut && matchVoyage && matchPays && matchOverdue && matchMoisAnnee;
+                });
+
+                const paginatedFactures = filteredFactures.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                if (filteredFactures.length === 0) {
+                  return (
+                    <tr><td colSpan={13}>
+                      <div className="empty-state">
+                        <div className="empty-icon"><FileText size={26} /></div>
+                        <div className="empty-title">Aucune facture trouvée</div>
+                        <div className="empty-desc">
+                          {search || filterStatut || filterVoyage || filterPays
+                            ? 'Aucun résultat pour ces filtres.'
+                            : 'Créez votre première facture.'}
+                        </div>
+                        {(isAdmin || permissions.creerFacture) && !search && !filterStatut && !filterVoyage && !filterPays && (
+                          <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouvelle facture</button>
+                        )}
+                      </div>
+                    </td></tr>
+                  );
+                }
+
+                return paginatedFactures.map(f => (
+                  <tr key={f.id}>
+                    <td>
+                      <code
+                        style={{ color: 'var(--brand)', fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.02em' }}
+                        onClick={() => openView(f)}
+                      >
+                        {f.numero}
+                      </code>
+                    </td>
+                    <td style={{ fontWeight: 500 }}>{f.expediteur?.prenom} {f.expediteur?.nom}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{f.destinataire?.prenom} {f.destinataire?.nom}</td>
+                    <td><span className="badge badge-info" style={{ fontSize: 10 }}>{getVoyageName(f.voyageId)}</span></td>
+                    <td>
+                      {f.payerComores ? (
+                        Number(f.montantPaye || 0) > 0 ? (
+                          <span className="badge badge-purple" style={{ fontSize: 10, background: 'linear-gradient(135deg, var(--info-muted) 0%, var(--purple-muted) 100%)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)' }}>Sen-Com</span>
+                        ) : (
+                          <span className="badge badge-purple" style={{ fontSize: 10 }}>Comores</span>
+                        )
                       ) : (
-                        <span className="badge badge-purple" style={{ fontSize: 10 }}>Comores</span>
-                      )
-                    ) : (
-                      <span className="badge badge-muted" style={{ fontSize: 10 }}>Sénégal</span>
-                    )}
-                  </td>
-                  <td style={{ fontWeight: 700 }}>{formatCurrency(f.montantTotal, devise)}</td>
-                  <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(f.montantPaye, devise)}</td>
-                  <td style={{ color: f.montantTotal - f.montantPaye > 0 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 600 }}>
-                    {formatCurrency(f.montantTotal - f.montantPaye, devise)}
-                  </td>
-                  <td><span className={`badge ${STATUT_CFG[f.statut]?.cls}`}>{STATUT_CFG[f.statut]?.label}</span></td>
-                  <td style={{ color: f.dateLimite && (f.montantTotal - f.montantPaye > 0) ? 'var(--danger)' : 'var(--text-muted)', fontSize: 12, fontWeight: f.dateLimite ? 600 : 400 }}>
-                    {f.dateLimite ? formatDate(f.dateLimite) : '-'}
-                  </td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(f.createdAt)}</td>
-                  <td style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
-                    {f.creePar ? `${f.creePar.prenom} ${f.creePar.nom}` : 'Admin'}
-                  </td>
-                  <td>
-                    <div className="flex gap-2">
-                      {f.montantTotal - f.montantPaye > 0 && (
-                        <>
-                          {(isAdmin || permissions.realiserPaiement) && (
-                            <button className="btn-icon danger" onClick={() => handleReminderWhatsApp(f)} title="Notifier (WhatsApp)"><Bell size={14} /></button>
-                          )}
-                          {(isAdmin || permissions.realiserPaiement) && (
-                            <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => startPayment(f)} title="Réaliser un paiement"><DollarSign size={14} /></button>
-                          )}
-                        </>
+                        <span className="badge badge-muted" style={{ fontSize: 10 }}>Sénégal</span>
                       )}
-                      <button className="btn-icon" onClick={() => openView(f)} title="Aperçu"><Eye size={14} /></button>
-                      {(isAdmin || permissions.modifierFacture) && (
-                        <button className="btn-icon" onClick={() => openEdit(f)} title="Modifier"><Edit2 size={14} /></button>
-                      )}
-                      {(isAdmin || permissions.supprimerFacture) && (
-                        <button className="btn-icon danger" onClick={() => setConfirmDelete(f)} title="Supprimer"><Trash2 size={14} /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && factures.length === 0 && (
-                <tr><td colSpan={13}>
-                  <div className="empty-state">
-                    <div className="empty-icon"><FileText size={26} /></div>
-                    <div className="empty-title">Aucune facture trouvée</div>
-                    <div className="empty-desc">
-                      {search || filterStatut || filterVoyage || filterPays
-                        ? 'Aucun résultat pour ces filtres.'
-                        : 'Créez votre première facture.'}
-                    </div>
-                    {(isAdmin || permissions.creerFacture) && !search && !filterStatut && !filterVoyage && !filterPays && (
-                      <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouvelle facture</button>
-                    )}
-                  </div>
-                </td></tr>
-              )}
+                    </td>
+                    <td style={{ fontWeight: 700 }}>{formatCurrency(f.montantTotal, devise)}</td>
+                    <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(f.montantPaye, devise)}</td>
+                    <td style={{ color: f.montantTotal - f.montantPaye > 0 ? 'var(--danger)' : 'var(--text-muted)', fontWeight: 600 }}>
+                      {formatCurrency(f.montantTotal - f.montantPaye, devise)}
+                    </td>
+                    <td><span className={`badge ${STATUT_CFG[f.statut]?.cls}`}>{STATUT_CFG[f.statut]?.label}</span></td>
+                    <td style={{ color: f.dateLimite && (f.montantTotal - f.montantPaye > 0) ? 'var(--danger)' : 'var(--text-muted)', fontSize: 12, fontWeight: f.dateLimite ? 600 : 400 }}>
+                      {f.dateLimite ? formatDate(f.dateLimite) : '-'}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(f.createdAt)}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
+                      {f.creePar ? `${f.creePar.prenom} ${f.creePar.nom}` : 'Admin'}
+                    </td>
+                    <td>
+                      <div className="flex gap-2">
+                        {f.montantTotal - f.montantPaye > 0 && (
+                          <>
+                            {(isAdmin || permissions.realiserPaiement) && (
+                              <button className="btn-icon danger" onClick={() => handleReminderWhatsApp(f)} title="Notifier (WhatsApp)"><Bell size={14} /></button>
+                            )}
+                            {(isAdmin || permissions.realiserPaiement) && (
+                              <button className="btn-icon" style={{ color: 'var(--success)' }} onClick={() => startPayment(f)} title="Réaliser un paiement"><DollarSign size={14} /></button>
+                            )}
+                          </>
+                        )}
+                        <button className="btn-icon" onClick={() => openView(f)} title="Aperçu"><Eye size={14} /></button>
+                        {(isAdmin || permissions.modifierFacture) && (
+                          <button className="btn-icon" onClick={() => openEdit(f)} title="Modifier"><Edit2 size={14} /></button>
+                        )}
+                        {(isAdmin || permissions.supprimerFacture) && (
+                          <button className="btn-icon danger" onClick={() => setConfirmDelete(f)} title="Supprimer"><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
+        {!loading && (
+          <Pagination
+            totalItems={factures.filter(f => {
+              const s = search.toLowerCase();
+              const matchSearch = !search || (
+                f.numero?.toLowerCase().includes(s) ||
+                `${f.expediteur?.prenom || ''} ${f.expediteur?.nom || ''}`.toLowerCase().includes(s) ||
+                `${f.destinataire?.prenom || ''} ${f.destinataire?.nom || ''}`.toLowerCase().includes(s) ||
+                f.expediteur?.telephone?.includes(s) ||
+                f.destinataire?.telephone?.includes(s)
+              );
+              const matchStatut = !filterStatut || f.statut === filterStatut;
+              const matchVoyage = !filterVoyage || f.voyageId === filterVoyage;
+              const matchPays = !filterPays || (
+                filterPays === 'senegal' ? !f.payerComores :
+                filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
+                filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
+              );
+              const matchOverdue = !filterOverdue || (f.montantTotal - f.montantPaye > 0);
+              let matchMoisAnnee = true;
+              if (filterMois !== '' || filterAnnee !== '') {
+                const d = new Date(f.createdAt);
+                if (filterMois !== '' && d.getMonth() !== parseInt(filterMois)) matchMoisAnnee = false;
+                if (filterAnnee !== '' && d.getFullYear() !== parseInt(filterAnnee)) matchMoisAnnee = false;
+              }
+              return matchSearch && matchStatut && matchVoyage && matchPays && matchOverdue && matchMoisAnnee;
+            }).length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
       </div>
 
       {showModal && (

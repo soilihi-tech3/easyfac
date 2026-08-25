@@ -108,12 +108,13 @@ class WhatsAppManager {
 
   getStatus(boutiqueId) {
     if (!boutiqueId) return { status: 'ERROR', message: "boutiqueId requis" };
-    // Ne pas créer un nouveau client si on veut juste le statut et qu'il n'existe pas
-    const clientData = this.clients.get(boutiqueId);
+    let clientData = this.clients.get(boutiqueId);
     if (!clientData) {
-      // Si on veut initier la connexion dès qu'on demande le statut :
-      const newClient = this.getClientData(boutiqueId);
-      return { status: newClient.status, qr: newClient.qrCodeUrl, phone: newClient.phoneConnected };
+      try {
+        clientData = this.getClientData(boutiqueId);
+      } catch (e) {
+        return { status: 'ERROR', message: e.message };
+      }
     }
     return {
       status: clientData.status,
@@ -142,6 +143,11 @@ class WhatsAppManager {
         }
       }
     }
+  }
+
+  async reconnect(boutiqueId) {
+    await this.logout(boutiqueId);
+    return this.getClientData(boutiqueId);
   }
 
   async sendText(boutiqueId, phone, message) {

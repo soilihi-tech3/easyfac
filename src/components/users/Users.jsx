@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye } from 'lucide-react';
+import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { getVoyages, API_URL } from '../../data/store';
@@ -33,6 +34,8 @@ export default function Users() {
   const [voyages, setVoyages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const { token, user: currentUser } = useAuth();
@@ -314,142 +317,158 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map(u => {
-                const voyage = voyages.find(v => v.id === u.voyageId);
-                const avatarBg = getAvatarGradient(u.prenom, u.nom);
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 38, height: 38, borderRadius: '50%',
-                          background: avatarBg,
-                          color: '#ffffff',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 800, fontSize: 13.5, border: '1px solid rgba(255,255,255,0.1)',
-                          boxShadow: 'var(--shadow-sm)'
-                        }}>
-                          {u.prenom?.[0]?.toUpperCase()}{u.nom?.[0]?.toUpperCase()}
+              {(() => {
+                const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                if (filteredUsers.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        Aucun employé ne correspond à votre recherche.
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return paginatedUsers.map(u => {
+                  const voyage = voyages.find(v => v.id === u.voyageId);
+                  const avatarBg = getAvatarGradient(u.prenom, u.nom);
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{
+                            width: 38, height: 38, borderRadius: '50%',
+                            background: avatarBg,
+                            color: '#ffffff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 800, fontSize: 13.5, border: '1px solid rgba(255,255,255,0.1)',
+                            boxShadow: 'var(--shadow-sm)'
+                          }}>
+                            {u.prenom?.[0]?.toUpperCase()}{u.nom?.[0]?.toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{u.prenom} {u.nom}</div>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>ID: {u.id.substring(0, 8)}</span>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{u.prenom} {u.nom}</div>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>ID: {u.id.substring(0, 8)}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{u.email}</div>
-                      {u.telephone && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>📞 {u.telephone}</div>}
-                    </td>
-                    <td>
-                      {u.role === 'admin' ? (
-                        <span className="badge badge-brand" style={{ gap: 4, background: 'var(--purple-muted)', color: 'var(--purple)' }}>
-                          <Shield size={10} /> Admin
-                        </span>
-                      ) : (
-                        <span className="badge badge-muted" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
-                          Employé
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      {u.role === 'admin' ? (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 500 }}>Tous les accès</span>
-                      ) : (
-                        voyage ? (
-                          <span className="badge badge-info" style={{ gap: 4, textTransform: 'none', background: 'var(--info-muted)', color: 'var(--info)', fontWeight: 600 }}>
-                            <Plane size={10} /> {voyage.nom}
+                      </td>
+                      <td>
+                        <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{u.email}</div>
+                        {u.telephone && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>📞 {u.telephone}</div>}
+                      </td>
+                      <td>
+                        {u.role === 'admin' ? (
+                          <span className="badge badge-brand" style={{ gap: 4, background: 'var(--purple-muted)', color: 'var(--purple)' }}>
+                            <Shield size={10} /> Admin
                           </span>
                         ) : (
-                          <span className="badge badge-danger" style={{ fontSize: 10, textTransform: 'none', background: 'var(--danger-muted)', color: 'var(--danger)' }}>
-                            Aucun voyage
+                          <span className="badge badge-muted" style={{ background: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                            Employé
                           </span>
-                        )
-                      )}
-                    </td>
-                    <td>
-                      <span
-                        onClick={() => u.id !== currentUser.id && toggleUserActive(u)}
-                        className={`badge ${u.active !== 0 ? 'badge-success' : 'badge-danger'}`}
-                        style={{
-                          cursor: u.id !== currentUser.id ? 'pointer' : 'default',
-                          gap: 4,
-                          padding: '4px 10px',
-                          fontSize: 11,
-                          fontWeight: 700
-                        }}
-                        title={u.id !== currentUser.id ? "Cliquer pour changer le statut" : "Votre propre compte"}
-                      >
-                        {u.active !== 0 ? 'Actif' : 'Désactivé'}
-                      </span>
-                    </td>
-                    <td>
-                      {u.role === 'admin' ? (
-                        <span style={{ color: 'var(--purple)', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Shield size={12} /> Accès Total Administrateur
-                        </span>
-                      ) : (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxWidth: 420 }}>
-                          {(() => {
-                            let perms = {};
-                            if (u.permissions) {
-                              try {
-                                perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
-                              } catch(e){}
-                            }
-                            const activePerms = [
-                              { key: 'voirClients', label: 'Voir Client' },
-                              { key: 'creerClient', label: 'Ajout Client' },
-                              { key: 'modifierClient', label: 'Mod. Client' },
-                              { key: 'supprimerClient', label: 'Sup. Client' },
-                              
-                              { key: 'voirFactures', label: 'Voir Fac.' },
-                              { key: 'creerFacture', label: 'Créer Fac.' },
-                              { key: 'modifierFacture', label: 'Modif. Fac.' },
-                              { key: 'supprimerFacture', label: 'Suppr. Fac.' },
-                              { key: 'realiserPaiement', label: 'Paiements' },
-                              
-                              { key: 'voirVoyages', label: 'Voir Voy.' },
-                              { key: 'creerVoyage', label: 'Créer Voy.' },
-                              { key: 'modifierVoyage', label: 'Mod. Voy.' },
-                              { key: 'supprimerVoyage', label: 'Sup. Voy.' },
-                              
-                              { key: 'voirDepenses', label: 'Voir Dép.' },
-                              { key: 'creerDepense', label: 'Créer Dép.' },
-                              { key: 'modifierDepense', label: 'Mod. Dép.' },
-                              { key: 'supprimerDepense', label: 'Sup. Dép.' },
-                            ].filter(p => !!perms[p.key]);
-
-                            return activePerms.length > 0 ? activePerms.map(p => (
-                              <span key={p.key} className="badge badge-brand" style={{ fontSize: 9.5, padding: '2px 8px', textTransform: 'none', letterSpacing: 'normal', fontWeight: 600 }}>
-                                {p.label}
-                              </span>
-                            )) : <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>Aucun droit configuré</span>;
-                          })()}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex gap-2 justify-end">
-                        <button className="btn-icon" onClick={() => openModal(u)} title="Modifier"><Edit2 size={13} /></button>
-                        {u.id !== currentUser.id && (
-                          <button className="btn-icon danger" onClick={() => handleDelete(u.id)} title="Supprimer"><Trash2 size={13} /></button>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                    Aucun employé ne correspond à votre recherche.
-                  </td>
-                </tr>
-              )}
+                      </td>
+                      <td>
+                        {u.role === 'admin' ? (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 500 }}>Tous les accès</span>
+                        ) : (
+                          voyage ? (
+                            <span className="badge badge-info" style={{ gap: 4, textTransform: 'none', background: 'var(--info-muted)', color: 'var(--info)', fontWeight: 600 }}>
+                              <Plane size={10} /> {voyage.nom}
+                            </span>
+                          ) : (
+                            <span className="badge badge-danger" style={{ fontSize: 10, textTransform: 'none', background: 'var(--danger-muted)', color: 'var(--danger)' }}>
+                              Aucun voyage
+                            </span>
+                          )
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          onClick={() => u.id !== currentUser.id && toggleUserActive(u)}
+                          className={`badge ${u.active !== 0 ? 'badge-success' : 'badge-danger'}`}
+                          style={{
+                            cursor: u.id !== currentUser.id ? 'pointer' : 'default',
+                            gap: 4,
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            fontWeight: 700
+                          }}
+                          title={u.id !== currentUser.id ? "Cliquer pour changer le statut" : "Votre propre compte"}
+                        >
+                          {u.active !== 0 ? 'Actif' : 'Désactivé'}
+                        </span>
+                      </td>
+                      <td>
+                        {u.role === 'admin' ? (
+                          <span style={{ color: 'var(--purple)', fontWeight: 700, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Shield size={12} /> Accès Total Administrateur
+                          </span>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, maxWidth: 420 }}>
+                            {(() => {
+                              let perms = {};
+                              if (u.permissions) {
+                                try {
+                                  perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+                                } catch(e){}
+                              }
+                              const activePerms = [
+                                { key: 'voirClients', label: 'Voir Client' },
+                                { key: 'creerClient', label: 'Ajout Client' },
+                                { key: 'modifierClient', label: 'Mod. Client' },
+                                { key: 'supprimerClient', label: 'Sup. Client' },
+                                
+                                { key: 'voirFactures', label: 'Voir Fac.' },
+                                { key: 'creerFacture', label: 'Créer Fac.' },
+                                { key: 'modifierFacture', label: 'Modif. Fac.' },
+                                { key: 'supprimerFacture', label: 'Suppr. Fac.' },
+                                { key: 'realiserPaiement', label: 'Paiements' },
+                                
+                                { key: 'voirVoyages', label: 'Voir Voy.' },
+                                { key: 'creerVoyage', label: 'Créer Voy.' },
+                                { key: 'modifierVoyage', label: 'Mod. Voy.' },
+                                { key: 'supprimerVoyage', label: 'Sup. Voy.' },
+                                
+                                { key: 'voirDepenses', label: 'Voir Dép.' },
+                                { key: 'creerDepense', label: 'Créer Dép.' },
+                                { key: 'modifierDepense', label: 'Mod. Dép.' },
+                                { key: 'supprimerDepense', label: 'Sup. Dép.' },
+                              ].filter(p => !!perms[p.key]);
+
+                              return activePerms.length > 0 ? activePerms.map(p => (
+                                <span key={p.key} className="badge badge-brand" style={{ fontSize: 9.5, padding: '2px 8px', textTransform: 'none', letterSpacing: 'normal', fontWeight: 600 }}>
+                                  {p.label}
+                                </span>
+                              )) : <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>Aucun droit configuré</span>;
+                            })()}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex gap-2 justify-end">
+                          <button className="btn-icon" onClick={() => openModal(u)} title="Modifier"><Edit2 size={13} /></button>
+                          {u.id !== currentUser.id && (
+                            <button className="btn-icon danger" onClick={() => handleDelete(u.id)} title="Supprimer"><Trash2 size={13} /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
+        {!loading && (
+          <Pagination
+            totalItems={filteredUsers.length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
       </div>
 
       {showModal && createPortal(

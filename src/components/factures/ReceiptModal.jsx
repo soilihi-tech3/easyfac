@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getParametres, getVoyages, formatCurrency, formatDate, API_URL } from '../../data/store';
-import { Printer, MessageCircle, X, Bell, FileText, Send } from 'lucide-react';
+import { getParametres, getVoyages, formatCurrency, formatDate, deleteFacture, API_URL } from '../../data/store';
+import { Printer, MessageCircle, X, Bell, FileText, Send, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import html2pdf from 'html2pdf.js';
 
@@ -187,6 +187,19 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       toast(err.message || 'Échec de l\'envoi WhatsApp', 'error');
     } finally {
       setSendingWhatsapp(false);
+    }
+  };
+
+  const handleDeleteReceipt = async () => {
+    if (window.confirm(`Voulez-vous vraiment supprimer définitivement la facture N° ${facture.numero} ?`)) {
+      try {
+        await deleteFacture(facture.id);
+        toast('Facture et reçu supprimés avec succès', 'success');
+        onClose();
+        window.dispatchEvent(new Event('offline-sync-completed'));
+      } catch (err) {
+        toast('Erreur lors de la suppression', 'error');
+      }
     }
   };
 
@@ -1297,6 +1310,16 @@ export default function ReceiptModal({ facture, onClose, devise }) {
           >
             {sendingWhatsapp ? <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> : <Send size={14} />} 
             {sendingWhatsapp ? 'Envoi...' : 'Envoyer PDF via WhatsApp'}
+          </button>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={handleDeleteReceipt}
+            style={{ gap: 6, background: 'var(--danger-muted)', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.2)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--danger)'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--danger-muted)'; e.currentTarget.style.color = 'var(--danger)'; }}
+            title="Supprimer définitivement ce reçu"
+          >
+            <Trash2 size={14} /> Supprimer
           </button>
           {/* ── CLOSE BUTTON — always visible ── */}
           <button

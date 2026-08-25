@@ -1,0 +1,876 @@
+/* FlyerGenerator.css - Ultra Premium HD Multi-Template Styles */
+
+.flyer-generator-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding-bottom: 40px;
+}
+
+/* Page Header */
+.flyer-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--bg-card);
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
+}
+
+.flyer-page-header h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 4px;
+}
+
+.flyer-page-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.flyer-download-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all 0.2s ease;
+}
+
+.flyer-download-main-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+}
+
+.flyer-download-main-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Template Selector Bar */
+.template-selector-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.template-selector-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.template-grid-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.template-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.template-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  border-color: var(--border-strong);
+}
+
+.template-btn.active {
+  background: var(--brand-muted);
+  color: var(--brand);
+  border-color: var(--brand);
+  font-weight: 700;
+}
+
+.tpl-badge {
+  background: var(--border-default);
+  color: var(--text-main);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.template-btn.active .tpl-badge {
+  background: var(--brand);
+  color: #fff;
+}
+
+.custom-upload-btn {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #10b981 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+.custom-upload-btn:hover,
+.custom-upload-btn.active {
+  background: #10b981 !important;
+  color: #ffffff !important;
+}
+
+/* Workspace 2-Column Grid */
+.flyer-workspace {
+  display: grid;
+  grid-template-columns: 430px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .flyer-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Form Controls */
+.flyer-controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.controls-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.swap-route-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--brand);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.swap-route-btn:hover {
+  background: var(--brand);
+  color: #ffffff;
+}
+
+.form-group-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warning-card-box {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.03);
+}
+
+.red-input {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: #ef4444 !important;
+  font-weight: 600 !important;
+}
+
+.airline-selector-box {
+  border-color: rgba(2, 132, 199, 0.3);
+  background: rgba(2, 132, 199, 0.03);
+}
+
+.btn-upload-airline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-upload-airline:hover {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.custom-airline-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.form-card-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.field-sublabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.flyer-text-input,
+.flyer-select-input {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-main);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.flyer-text-input:focus,
+.flyer-select-input:focus {
+  border-color: var(--brand);
+}
+
+/* Right Column Preview Box */
+.flyer-preview-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.btn-quick-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--brand-muted);
+  color: var(--brand);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-quick-download:hover {
+  background: var(--brand);
+  color: #fff;
+}
+
+.flyer-frame-wrapper {
+  display: flex;
+  justify-content: center;
+  background: var(--bg-card);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-md);
+  overflow-x: auto;
+}
+
+/* -------------------------------------------------------------
+   THE FLYER ARTBOARD (1:1 HD Canvas Box 580px x 580px)
+   ------------------------------------------------------------- */
+.flyer-artboard {
+  width: 580px;
+  height: 580px;
+  position: relative;
+  background: #0b1528;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+/* Custom Uploaded Background Image */
+.custom-bg-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* Background Image & Airplane Graphic */
+.flyer-bg-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, #0c182c 0%, #15253e 50%, #0d1627 100%);
+  overflow: hidden;
+}
+
+.flyer-sky-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 60%;
+  background: radial-gradient(circle at 50% 20%, rgba(30, 64, 175, 0.4) 0%, rgba(12, 24, 44, 0) 70%);
+}
+
+.plane-graphic-container {
+  position: absolute;
+  top: 10px;
+  left: 0;
+  width: 100%;
+  height: 230px;
+  opacity: 0.96;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: transform 0.05s ease-out;
+}
+
+.plane-svg-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.custom-airline-img {
+  max-width: 92%;
+  max-height: 210px;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.85));
+}
+
+/* Top Header Branding */
+.flyer-top-brand {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 14px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.brand-logo-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-plane-icon {
+  color: #ffffff;
+  transform: rotate(-15deg);
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+
+.brand-title {
+  font-size: 24px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  text-transform: uppercase;
+  font-family: 'Impact', 'Arial Black', sans-serif;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+}
+
+.brand-subtitle-line {
+  margin-top: 1px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+.brand-subtitle-line span {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #fbbf24;
+  text-transform: uppercase;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* ⚠️ RED WARNING BANNER */
+.flyer-red-warning-banner {
+  position: relative;
+  z-index: 10;
+  margin: 6px 20px 0 20px;
+  background: linear-gradient(90deg, #dc2626 0%, #ef4444 50%, #b91c1c 100%);
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  padding: 5px 14px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+}
+
+.flyer-red-warning-banner.bottom-banner {
+  margin: 4px 16px 6px 16px;
+  border-radius: 8px;
+  padding: 6px 16px;
+}
+
+.flyer-red-warning-banner span {
+  font-size: 13px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* ℹ️ INFO COMPLEMENTAIRE BANNER */
+.flyer-info-pill-banner {
+  position: relative;
+  z-index: 10;
+  margin: 4px 24px 0 24px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 20px;
+  padding: 4px 16px;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.flyer-info-pill-banner span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 0.3px;
+}
+
+/* Middle Section: Cities & Flags */
+.flyer-route-box {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  margin-top: 42px;
+}
+
+.city-flag-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 135px;
+}
+
+.city-name {
+  font-size: 24px;
+  font-weight: 900;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.9);
+  text-align: center;
+  font-family: 'Arial Black', sans-serif;
+}
+
+.flag-wrapper {
+  width: 105px;
+  height: 65px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 3px solid #ffffff;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.6);
+  background: #000;
+}
+
+.flag-svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Center Arrow & Gold Price Pill */
+.route-center-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 190px;
+}
+
+.route-arrow-line {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  justify-content: center;
+}
+
+.arrow-shaft {
+  height: 4px;
+  width: 120px;
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+  border-radius: 2px;
+}
+
+.arrow-head {
+  color: #fbbf24;
+  font-size: 20px;
+  margin-left: -6px;
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.8);
+}
+
+.price-gold-badge {
+  background: linear-gradient(180deg, #fef08a 0%, #f59e0b 40%, #d97706 70%, #92400e 100%);
+  border: 3px solid #fef08a;
+  border-radius: 14px;
+  padding: 6px 20px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.price-text {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  font-family: 'Arial Black', sans-serif;
+}
+
+/* Sub-Dates Row */
+.flyer-dates-row {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 32px;
+  margin-top: 6px;
+}
+
+.date-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.date-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.date-val-gold {
+  font-size: 24px;
+  font-weight: 900;
+  color: #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+  font-family: 'Arial Black', sans-serif;
+}
+
+/* Phone Numbers Row (Supports 2 per side) */
+.flyer-phones-row {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  margin-top: 6px;
+}
+
+.phone-pill-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 240px;
+}
+
+.phone-pill-stack:last-child {
+  align-items: flex-end;
+}
+
+.phone-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 4px 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  border: 1px solid #cbd5e1;
+  width: fit-content;
+}
+
+.phone-pill.secondary {
+  background: #f8fafc;
+  opacity: 0.95;
+}
+
+.wa-icon-circle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #25d366;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(37, 211, 102, 0.4);
+  flex-shrink: 0;
+}
+
+.phone-pill span {
+  font-size: 13.5px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+
+/* Payment Methods Section */
+.flyer-payment-section {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.payment-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+.payment-methods-pill {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  border: 2px solid #7dd3fc;
+  border-radius: 10px;
+  padding: 5px 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.pay-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.om-icon {
+  background: #ff6600;
+  color: #fff;
+  font-weight: 900;
+  font-size: 11px;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.om-text {
+  font-size: 13px;
+  color: #ffffff;
+}
+
+.om-text b {
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.pay-divider {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 700;
+}
+
+.wave-icon {
+  font-size: 14px;
+}
+
+.wave-text {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+/* Bottom Wood Grain Address Footer */
+.flyer-footer-strip {
+  position: relative;
+  z-index: 10;
+  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
+  border-top: 2px solid #f59e0b;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 8px 10px;
+}
+
+.address-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pin-icon {
+  color: #b45309;
+  flex-shrink: 0;
+}
+
+.address-item span {
+  font-size: 10.5px;
+  font-weight: 900;
+  color: #1e293b;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.addr-sep {
+  color: #d97706;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------
+   TEMPLATE THEMES VARIATIONS (Cyber Neon & Gold Prestige)
+   ------------------------------------------------------------- */
+/* Template 2: Cyber Neon */
+.template-theme-template2 .flyer-bg-overlay {
+  background: linear-gradient(180deg, #050b14 0%, #0a192f 50%, #030712 100%);
+}
+
+.template-theme-template2 .brand-badge-ribbon {
+  background: linear-gradient(135deg, #0284c7, #06b6d4);
+  border-color: #38bdf8;
+}
+
+.template-theme-template2 .price-gold-badge {
+  background: linear-gradient(180deg, #34d399 0%, #059669 100%);
+  border-color: #6ee7b7;
+}
+
+.template-theme-template2 .date-val-gold {
+  color: #34d399;
+}
+
+.template-theme-template2 .arrow-shaft {
+  background: linear-gradient(90deg, #34d399, #6ee7b7);
+}
+
+.template-theme-template2 .arrow-head {
+  color: #34d399;
+}
+
+/* Template 3: Gold Prestige */
+.template-theme-template3 .flyer-bg-overlay {
+  background: linear-gradient(180deg, #180d04 0%, #2e1a09 50%, #120902 100%);
+}
+
+.template-theme-template3 .brand-badge-ribbon {
+  background: linear-gradient(135deg, #eab308, #ca8a04);
+  border-color: #fef08a;
+}
+
+.template-theme-template3 .price-gold-badge {
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+  border-color: #fef08a;
+}
+
+.template-theme-template3 .date-val-gold {
+  color: #fbbf24;
+}
+
+/* Animation for generating */
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

@@ -12,6 +12,8 @@ import Epargnes from './components/epargnes/Epargnes';
 import Statistiques from './components/statistiques/Statistiques';
 import Parametres from './components/parametres/Parametres';
 import Users from './components/users/Users';
+import FlyerGenerator from './components/flyer/FlyerGenerator';
+import Communiques from './components/communiques/Communiques';
 import Login from './components/auth/Login';
 import SuperAdminDashboard from './components/superadmin/SuperAdminDashboard';
 import './index.css';
@@ -33,12 +35,14 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
-            
+
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/factures" element={<ProtectedRoute><Factures /></ProtectedRoute>} />
             <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
             <Route path="/voyages" element={<ProtectedRoute><Voyages /></ProtectedRoute>} />
             <Route path="/depenses" element={<ProtectedRoute><Depenses /></ProtectedRoute>} />
+            <Route path="/communiques" element={<ProtectedRoute><Communiques /></ProtectedRoute>} />
+            <Route path="/flyer" element={<ProtectedRoute><FlyerGenerator /></ProtectedRoute>} />
             <Route path="/epargnes" element={<ProtectedRoute><Epargnes /></ProtectedRoute>} />
             <Route path="/statistiques" element={<ProtectedRoute><Statistiques /></ProtectedRoute>} />
             <Route path="/parametres" element={<ProtectedRoute><Parametres /></ProtectedRoute>} />

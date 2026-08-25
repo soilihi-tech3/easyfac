@@ -1,0 +1,563 @@
+/* Communiques.css - Styling for WhatsApp Broadcast & Communiqué Feature */
+
+.communiques-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  padding-bottom: 40px;
+}
+
+/* Page Header */
+.communiques-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--bg-card);
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
+}
+
+.header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--brand-muted);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-title-box h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.header-title-box p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.wa-connection-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.wa-connection-pill.connected {
+  background: var(--success-muted);
+  color: var(--success);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.wa-connection-pill.disconnected {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.wa-connection-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.wa-connection-pill.connected .dot {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.wa-connection-pill.disconnected .dot {
+  background: #f59e0b;
+}
+
+/* Workspace 2-Column Grid */
+.communiques-workspace {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .communiques-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Card Boxes */
+.card-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card-box-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.step-number {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-box-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+/* Target Options Tabs */
+.target-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.target-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.target-tab-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.target-tab-btn.active {
+  background: var(--brand-muted);
+  color: var(--brand);
+  border-color: var(--brand);
+  font-weight: 700;
+}
+
+/* Sub-select wrappers */
+.sub-select-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-surface);
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+}
+
+.input-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.comm-select-input {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  color: var(--text-main);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  outline: none;
+}
+
+.target-summary-info {
+  font-size: 12px;
+  color: var(--brand);
+  margin-top: 4px;
+}
+
+/* Custom Checkboxes Scroll Box */
+.custom-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.custom-clients-scroll-box {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.client-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.client-check-item:hover {
+  background: var(--bg-card-hover);
+}
+
+.client-name {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.client-phone {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Template Chips */
+.template-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-chip {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  padding: 7px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.template-chip:hover {
+  background: var(--bg-elevated);
+  color: var(--text-main);
+}
+
+.template-chip.active {
+  background: var(--brand-muted);
+  color: var(--brand);
+  border-color: var(--brand);
+  font-weight: 700;
+}
+
+/* Textarea & Tags */
+.textarea-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comm-textarea {
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-main);
+  padding: 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s;
+}
+
+.comm-textarea:focus {
+  border-color: var(--brand);
+}
+
+.tags-help-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tag-pill {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--brand);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tag-pill:hover {
+  background: var(--brand-muted);
+}
+
+/* Actions Bar */
+.comm-actions-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btn-status-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-default);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-status-copy:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.btn-send-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s;
+}
+
+.btn-send-auto:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.btn-send-auto:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.broadcast-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.broadcast-alert.success {
+  background: var(--success-muted);
+  color: var(--success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.broadcast-alert.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* Right Column: WhatsApp Live Preview & Client Cards */
+.communiques-preview-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.preview-box-card {
+  background: #0b141a;
+  border-color: #1f2c34;
+}
+
+.preview-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e9edef;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wa-icon {
+  color: #25d366;
+}
+
+.wa-chat-bubble {
+  background: #005c4b;
+  color: #e9edef;
+  padding: 12px 14px;
+  border-radius: 12px 12px 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  position: relative;
+  word-break: break-word;
+}
+
+.wa-bubble-time {
+  font-size: 10px;
+  color: rgba(241, 241, 241, 0.6);
+  text-align: right;
+  margin-top: 6px;
+}
+
+/* Individual Clients List */
+.client-list-card {
+  gap: 12px;
+}
+
+.client-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.client-list-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.sub-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #25d366;
+  background: rgba(37, 211, 102, 0.12);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.targeted-clients-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.client-target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-surface);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+}
+
+.client-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.c-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.c-phone {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.btn-wa-single {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(37, 211, 102, 0.12);
+  color: #25d366;
+  border: 1px solid rgba(37, 211, 102, 0.25);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-wa-single:hover {
+  background: #25d366;
+  color: #ffffff;
+}
+
+.empty-clients-notice {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

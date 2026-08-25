@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { getVoyages, addVoyage, updateVoyage, deleteVoyage, getStatsVoyage, formatCurrency, formatDate, getVoyagesCache, getFacturesCache, getDepensesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { Truck, Plus, Edit2, Trash2, Calendar, X, Check, TrendingUp, TrendingDown, DollarSign, FileText, Search } from 'lucide-react';
+import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
 
 const emptyForm = { nom: '', dateDepart: '', description: '' };
@@ -22,6 +23,8 @@ export default function Voyages() {
   const [search, setSearch] = useState('');
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [editVoyage, setEditVoyage] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -178,94 +181,111 @@ export default function Voyages() {
       <div className="grid-3" style={{ gap: 18 }}>
         {loading ? (
           <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>Chargement...</div>
-        ) : filteredVoyages.map(v => {
-          const stats = getVoyageStats(v.id);
-          const isPosifitif = stats.benefice >= 0;
-          return (
-            <div key={v.id} className="card card-hover" style={{ position: 'relative' }}>
-              {/* Card Top */}
-              <div className="flex items-start justify-between" style={{ marginBottom: 16 }}>
-                <div className="flex items-center gap-3">
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12,
-                    background: 'var(--info-muted)', color: 'var(--info)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                  }}>
-                    <Truck size={20} strokeWidth={1.7} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{v.nom}</div>
-                    <div className="flex items-center gap-1" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      <Calendar size={11} />
-                      {formatDate(v.dateDepart)}
+        ) : (() => {
+          const paginatedVoyages = filteredVoyages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+          if (filteredVoyages.length === 0) {
+            return (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <div className="card">
+                  <div className="empty-state">
+                    <div className="empty-icon"><Truck size={28} /></div>
+                    <div className="empty-title">Aucun voyage</div>
+                    <div className="empty-desc">
+                      {search || filterMois || filterAnnee
+                        ? 'Aucun voyage ne correspond aux critères de recherche.'
+                        : 'Créez votre premier voyage pour commencer à gérer vos trajets.'}
                     </div>
+                    {(isAdmin || permissions.creerVoyage) && !search && !filterMois && !filterAnnee && (
+                      <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouveau voyage</button>
+                    )}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  {(isAdmin || permissions.modifierVoyage) && (
-                    <button className="btn-icon" onClick={() => openEdit(v)} title="Modifier"><Edit2 size={13} /></button>
-                  )}
-                  {(isAdmin || permissions.supprimerVoyage) && (
-                    <button className="btn-icon danger" onClick={() => setConfirmDelete(v)} title="Supprimer"><Trash2 size={13} /></button>
-                  )}
-                </div>
               </div>
+            );
+          }
 
-              {v.description && (
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>{v.description}</p>
-              )}
-
-              <div className="divider" />
-
-              {/* Stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                {[
-                  { label: 'Encaissé',  val: stats.totalEncaisse,  color: 'var(--success)', Icon: TrendingUp },
-                  { label: 'Dépenses',  val: stats.totalDepenses,  color: 'var(--danger)',  Icon: TrendingDown },
-                  { label: 'Bénéfice',  val: stats.benefice,       color: isPosifitif ? 'var(--success)' : 'var(--danger)', Icon: DollarSign },
-                ].map((s, i) => (
-                  <div key={i} style={{ textAlign: 'center', padding: '10px 6px', background: 'var(--bg-surface)', borderRadius: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
-                      <s.Icon size={13} color={s.color} strokeWidth={2} />
+          return paginatedVoyages.map(v => {
+            const stats = getVoyageStats(v.id);
+            const isPosifitif = stats.benefice >= 0;
+            return (
+              <div key={v.id} className="card card-hover" style={{ position: 'relative' }}>
+                {/* Card Top */}
+                <div className="flex items-start justify-between" style={{ marginBottom: 16 }}>
+                  <div className="flex items-center gap-3">
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: 'var(--info-muted)', color: 'var(--info)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <Truck size={20} strokeWidth={1.7} />
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-display)', color: s.color }}>
-                      {formatCurrency(s.val, devise)}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{v.nom}</div>
+                      <div className="flex items-center gap-1" style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                        <Calendar size={11} />
+                        {formatDate(v.dateDepart)}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>{s.label}</div>
                   </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <span className="badge badge-info">
-                  <FileText size={10} />
-                  {stats.nbFactures} facture{stats.nbFactures > 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-
-        {!loading && filteredVoyages.length === 0 && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <div className="card">
-              <div className="empty-state">
-                <div className="empty-icon"><Truck size={28} /></div>
-                <div className="empty-title">Aucun voyage</div>
-                <div className="empty-desc">
-                  {search || filterMois || filterAnnee
-                    ? 'Aucun voyage ne correspond aux critères de recherche.'
-                    : 'Créez votre premier voyage pour commencer à gérer vos trajets.'}
+                  <div className="flex gap-2">
+                    {(isAdmin || permissions.modifierVoyage) && (
+                      <button className="btn-icon" onClick={() => openEdit(v)} title="Modifier"><Edit2 size={13} /></button>
+                    )}
+                    {(isAdmin || permissions.supprimerVoyage) && (
+                      <button className="btn-icon danger" onClick={() => setConfirmDelete(v)} title="Supprimer"><Trash2 size={13} /></button>
+                    )}
+                  </div>
                 </div>
-                {(isAdmin || permissions.creerVoyage) && !search && !filterMois && !filterAnnee && (
-                  <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Nouveau voyage</button>
+
+                {v.description && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>{v.description}</p>
                 )}
+
+                <div className="divider" />
+
+                {/* Stats */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  {[
+                    { label: 'Encaissé',  val: stats.totalEncaisse,  color: 'var(--success)', Icon: TrendingUp },
+                    { label: 'Dépenses',  val: stats.totalDepenses,  color: 'var(--danger)',  Icon: TrendingDown },
+                    { label: 'Bénéfice',  val: stats.benefice,       color: isPosifitif ? 'var(--success)' : 'var(--danger)', Icon: DollarSign },
+                  ].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center', padding: '10px 6px', background: 'var(--bg-surface)', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
+                        <s.Icon size={13} color={s.color} strokeWidth={2} />
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-display)', color: s.color }}>
+                        {formatCurrency(s.val, devise)}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 500 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <span className="badge badge-info">
+                    <FileText size={10} />
+                    {stats.nbFactures} facture{stats.nbFactures > 1 ? 's' : ''}
+                  </span>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            );
+          });
+        })()}
       </div>
+
+      {!loading && (
+        <div style={{ marginTop: 16 }}>
+          <Pagination
+            totalItems={filteredVoyages.length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {showModal && createPortal(

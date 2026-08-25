@@ -23,6 +23,17 @@ router.post('/logout', async (req, res) => {
   }
 });
 
+router.post('/reconnect', async (req, res) => {
+  try {
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+    const clientData = await whatsappManager.reconnect(boutiqueId);
+    res.json({ success: true, status: clientData.status, qr: clientData.qrCodeUrl });
+  } catch (err) {
+    res.status(500).json({ error: 'Erreur lors de la réinitialisation WhatsApp', details: err.message });
+  }
+});
+
 router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
   try {
     const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
@@ -72,6 +83,41 @@ router.post('/send-message', async (req, res) => {
       error: `Erreur d'envoi: ${error.message}`, 
       details: error.message 
     });
+  }
+});
+
+router.post('/send-broadcast', async (req, res) => {
+  try {
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+
+    const { recipients, message } = req.body;
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0 || !message) {
+      return res.status(400).json({ error: "Récipiendaires ou message manquant." });
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const r of recipients) {
+      if (!r.phone) continue;
+      try {
+        const text = message
+          .replace(/{prenom}/g, r.prenom || '')
+          .replace(/{nom}/g, r.nom || '');
+        await whatsappManager.sendText(boutiqueId, r.phone, text);
+        sent++;
+        // Small delay to prevent rate limits
+        await new Promise(resolve => setTimeout(resolve, 800));
+      } catch (e) {
+        console.error(`Failed broadcast to ${r.phone}:`, e.message);
+        failed++;
+      }
+    }
+
+    res.json({ success: true, total: recipients.length, sent, failed });
+  } catch (error) {
+    console.error("Broadcast Error:", error.message);
+    res.status(500).json({ error: `Erreur de diffusion: ${error.message}` });
   }
 });
 

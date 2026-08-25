@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { TrendingDown, Plus, Edit2, Trash2, X, Check, AlertCircle, Search } from 'lucide-react';
+import Pagination from '../common/Pagination';
 
 const emptyForm = { nom: '', quantite: 1, montant: '', voyageId: '' };
 
@@ -13,6 +14,8 @@ export default function Depenses() {
     return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   });
   const [voyages, setVoyages] = useState(() => getVoyagesCache());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [loading, setLoading] = useState(() => {
     return getDepensesCache().length === 0;
   });
@@ -195,58 +198,74 @@ export default function Depenses() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
-              ) : depenses.map(d => (
-                <tr key={d.id}>
-                  <td style={{ fontWeight: 600 }}>{d.nom}</td>
-                  <td>{d.quantite || 1}</td>
-                  <td>{formatCurrency(d.montant, devise)}</td>
-                  <td style={{ fontWeight: 700, color: 'var(--danger)' }}>
-                    {formatCurrency(d.montant * (d.quantite || 1), devise)}
-                  </td>
-                  <td>
-                    {d.voyageId
-                      ? <span className="badge badge-info">{getVoyageName(d.voyageId)}</span>
-                      : <span className="badge badge-muted">Sans voyage</span>
-                    }
-                  </td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(d.createdAt)}</td>
-                  <td style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
-                    {d.creePar ? `${d.creePar.prenom} ${d.creePar.nom}` : 'Admin'}
-                  </td>
-                  <td>
-                    <div className="flex gap-2">
-                      {(isAdmin || permissions.modifierDepense) && (
-                        <button className="btn-icon" onClick={() => openEdit(d)} title="Modifier"><Edit2 size={14} /></button>
-                      )}
-                      {(isAdmin || permissions.supprimerDepense) && (
-                        <button className="btn-icon danger" onClick={() => setConfirmDelete(d)} title="Supprimer"><Trash2 size={14} /></button>
-                      )}
-                      {!isAdmin && !permissions.modifierDepense && !permissions.supprimerDepense && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!loading && depenses.length === 0 && (
-                <tr><td colSpan={8}>
-                  <div className="empty-state">
-                    <div className="empty-icon"><TrendingDown size={26} /></div>
-                    <div className="empty-title">Aucune dépense</div>
-                    <div className="empty-desc">
-                      {search || filterVoyage || filterMois || filterAnnee
-                        ? 'Aucune dépense ne correspond aux critères de recherche.'
-                        : 'Enregistrez vos dépenses pour calculer vos bénéfices réels.'}
-                    </div>
-                    {(isAdmin || permissions.creerDepense) && !search && !filterVoyage && !filterMois && !filterAnnee && (
-                      <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Ajouter une dépense</button>
-                    )}
-                  </div>
-                </td></tr>
-              )}
+              ) : (() => {
+                const paginatedDepenses = depenses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                if (depenses.length === 0) {
+                  return (
+                    <tr><td colSpan={8}>
+                      <div className="empty-state">
+                        <div className="empty-icon"><TrendingDown size={26} /></div>
+                        <div className="empty-title">Aucune dépense</div>
+                        <div className="empty-desc">
+                          {search || filterVoyage || filterMois || filterAnnee
+                            ? 'Aucune dépense ne correspond aux critères de recherche.'
+                            : 'Enregistrez vos dépenses pour calculer vos bénéfices réels.'}
+                        </div>
+                        {(isAdmin || permissions.creerDepense) && !search && !filterVoyage && !filterMois && !filterAnnee && (
+                          <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Ajouter une dépense</button>
+                        )}
+                      </div>
+                    </td></tr>
+                  );
+                }
+
+                return paginatedDepenses.map(d => (
+                  <tr key={d.id}>
+                    <td style={{ fontWeight: 600 }}>{d.nom}</td>
+                    <td>{d.quantite || 1}</td>
+                    <td>{formatCurrency(d.montant, devise)}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--danger)' }}>
+                      {formatCurrency(d.montant * (d.quantite || 1), devise)}
+                    </td>
+                    <td>
+                      {d.voyageId
+                        ? <span className="badge badge-info">{getVoyageName(d.voyageId)}</span>
+                        : <span className="badge badge-muted">Sans voyage</span>
+                      }
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{formatDate(d.createdAt)}</td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600 }}>
+                      {d.creePar ? `${d.creePar.prenom} ${d.creePar.nom}` : 'Admin'}
+                    </td>
+                    <td>
+                      <div className="flex gap-2">
+                        {(isAdmin || permissions.modifierDepense) && (
+                          <button className="btn-icon" onClick={() => openEdit(d)} title="Modifier"><Edit2 size={14} /></button>
+                        )}
+                        {(isAdmin || permissions.supprimerDepense) && (
+                          <button className="btn-icon danger" onClick={() => setConfirmDelete(d)} title="Supprimer"><Trash2 size={14} /></button>
+                        )}
+                        {!isAdmin && !permissions.modifierDepense && !permissions.supprimerDepense && (
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </div>
+        {!loading && (
+          <Pagination
+            totalItems={depenses.length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
       </div>
 
       {/* Add/Edit Modal */}

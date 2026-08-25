@@ -116,10 +116,31 @@ export default function Parametres() {
       });
       if (res.ok) {
         toast('Déconnecté de WhatsApp avec succès');
-        setWaStatus({ status: 'LOADING', qr: null, phone: null });
+        setWaStatus({ status: 'DISCONNECTED', qr: null, phone: null });
       }
     } catch (err) {
       toast('Erreur lors de la déconnexion WhatsApp', 'error');
+    }
+  };
+
+  const handleWaReconnect = async () => {
+    setWaStatus({ status: 'INITIALIZING', qr: null, phone: null });
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/whatsapp/reconnect`, { 
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWaStatus(data);
+        toast('Génération du QR Code WhatsApp en cours...');
+      }
+    } catch (err) {
+      toast('Erreur lors de la réinitialisation WhatsApp', 'error');
+      setWaStatus({ status: 'DISCONNECTED', qr: null, phone: null });
     }
   };
 
@@ -398,31 +419,50 @@ export default function Parametres() {
             <div style={{ padding: 16, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)' }}>
               <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>État de la connexion WhatsApp</h4>
               
-              {waStatus.status === 'LOADING' && <div>Chargement du statut...</div>}
-              
-              {waStatus.status === 'CONNECTED' && (
+              {waStatus.status === 'CONNECTED' ? (
                 <div className="flex items-center justify-between">
                   <div>
                     <div style={{ color: '#25d366', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <CheckCircle size={16} /> Connecté
+                      <CheckCircle size={16} /> Connecté sur WhatsApp
                     </div>
-                    {waStatus.phone && <div style={{ fontSize: 12, marginTop: 4 }}>Numéro : {waStatus.phone}</div>}
+                    {waStatus.phone && <div style={{ fontSize: 12, marginTop: 4, color: 'var(--text-muted)' }}>Compte : +{waStatus.phone}</div>}
                   </div>
                   <button className="btn btn-secondary" onClick={handleWaLogout}>Déconnecter</button>
                 </div>
-              )}
-
-              {waStatus.status === 'QR_READY' && waStatus.qr && (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, marginBottom: 10, color: 'var(--warning)' }}>
-                    Non connecté. Scannez ce QR code avec l'application WhatsApp de votre téléphone (Appareils connectés).
+              ) : waStatus.status === 'QR_READY' && waStatus.qr ? (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--warning)', fontWeight: 600 }}>
+                    📱 Scannez ce QR code avec l'application WhatsApp de votre téléphone :<br/>
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Allez dans WhatsApp &gt; Réglages / Menu &gt; Appareils connectés &gt; Connecter un appareil</span>
                   </div>
-                  <img src={waStatus.qr} alt="WhatsApp QR Code" style={{ maxWidth: 200, margin: '0 auto', display: 'block', border: '1px solid var(--border-default)', borderRadius: 8 }} />
+                  <img src={waStatus.qr} alt="WhatsApp QR Code" style={{ maxWidth: 220, margin: '0 auto 14px auto', display: 'block', border: '3px solid var(--border-default)', borderRadius: 12, padding: 8, background: '#ffffff' }} />
+                  <button className="btn btn-secondary btn-sm" onClick={handleWaReconnect} style={{ margin: '0 auto' }}>
+                    🔄 Ré-générer un nouveau QR Code
+                  </button>
                 </div>
-              )}
-
-              {waStatus.status === 'INITIALIZING' && (
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Initialisation du client WhatsApp... (patientez)</div>
+              ) : waStatus.status === 'INITIALIZING' ? (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <div style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>
+                    ⏳ Initialisation du service WhatsApp en cours...
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Le QR Code va s'afficher d'ici quelques secondes (veuillez patienter).
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', flexWrap: 'wrap', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 700 }}>
+                      WhatsApp Non Connecté
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Cliquez pour générer le QR Code et connecter votre téléphone.
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" onClick={handleWaReconnect} style={{ background: '#25d366', borderColor: '#25d366', color: '#ffffff', fontWeight: 700 }}>
+                    📲 Générer le QR Code
+                  </button>
+                </div>
               )}
             </div>
 

@@ -3,6 +3,7 @@ import { getClients, addClient, updateClient, deleteClient, getFactures, formatC
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { Users, Search, Plus, Edit2, Trash2, Phone, MapPin, X, Check } from 'lucide-react';
+import Pagination from '../common/Pagination';
 
 const extractPhoneParts = (phone) => {
   if (!phone) return { prefix: '+221', number: '' };
@@ -19,6 +20,8 @@ export default function Clients() {
   const [clients, setClients] = useState(() => getClientsCache());
   const [factures, setFactures] = useState(() => getFacturesCache());
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
   const [showModal, setShowModal] = useState(false);
   const [editClient, setEditClient] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -159,76 +162,97 @@ export default function Clients() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
-              ) : filteredClients.map(c => {
-                const cs = getClientStats(c.id);
-                return (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div style={{
-                          width: 36, height: 36, borderRadius: 10,
-                          background: 'var(--brand-muted)', color: 'var(--brand)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-display)',
-                          flexShrink: 0,
-                        }}>
-                          {c.prenom?.[0]}{c.nom?.[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{c.prenom} {c.nom}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
-                        <Phone size={13} />
-                        {c.telephone}
-                      </div>
-                    </td>
-                    <td>
-                      {c.adresse ? (
-                        <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                          <MapPin size={13} />
-                          {c.adresse}
-                        </div>
-                      ) : <span style={{ color: 'var(--text-disabled)' }}>—</span>}
-                    </td>
-                    <td><span className="badge badge-info">{cs.nb}</span></td>
-                    <td style={{ fontWeight: 700 }}>{formatCurrency(cs.ca, devise)}</td>
-                    <td>
-                      <div className="flex gap-2">
-                        {(isAdmin || permissions.modifierClient) && (
-                          <button className="btn-icon" onClick={() => openEdit(c)} title="Modifier">
-                            <Edit2 size={14} />
-                          </button>
-                        )}
-                        {(isAdmin || permissions.supprimerClient) && (
-                          <button className="btn-icon danger" onClick={() => setConfirmDelete(c)} title="Supprimer">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+              ) : (() => {
+                const filteredClients = clients.filter(c =>
+                  `${c.nom} ${c.prenom} ${c.telephone} ${c.adresse || ''}`.toLowerCase().includes(search.toLowerCase())
                 );
-              })}
-              {!loading && filteredClients.length === 0 && (
-                <tr><td colSpan={6}>
-                  <div className="empty-state">
-                    <div className="empty-icon"><Users size={26} /></div>
-                    <div className="empty-title">Aucun client trouvé</div>
-                    <div className="empty-desc">
-                      {search ? 'Aucun résultat pour cette recherche.' : 'Commencez par ajouter votre premier client.'}
-                    </div>
-                    {!search && (isAdmin || permissions.creerClient) && (
-                      <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Ajouter un client</button>
-                    )}
-                  </div>
-                </td></tr>
-              )}
+                const paginatedClients = filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+                if (filteredClients.length === 0) {
+                  return (
+                    <tr><td colSpan={6}>
+                      <div className="empty-state">
+                        <div className="empty-icon"><Users size={26} /></div>
+                        <div className="empty-title">Aucun client trouvé</div>
+                        <div className="empty-desc">
+                          {search ? 'Aucun résultat pour cette recherche.' : 'Commencez par ajouter votre premier client.'}
+                        </div>
+                        {!search && (isAdmin || permissions.creerClient) && (
+                          <button className="btn btn-primary" onClick={openAdd}><Plus size={16} /> Ajouter un client</button>
+                        )}
+                      </div>
+                    </td></tr>
+                  );
+                }
+
+                return paginatedClients.map(c => {
+                  const cs = getClientStats(c.id);
+                  return (
+                    <tr key={c.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div style={{
+                            width: 36, height: 36, borderRadius: 10,
+                            background: 'var(--brand-muted)', color: 'var(--brand)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 800, fontSize: 13, fontFamily: 'var(--font-display)',
+                            flexShrink: 0,
+                          }}>
+                            {c.prenom?.[0]}{c.nom?.[0]}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{c.prenom} {c.nom}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                          <Phone size={13} />
+                          {c.telephone}
+                        </div>
+                      </td>
+                      <td>
+                        {c.adresse ? (
+                          <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+                            <MapPin size={13} />
+                            {c.adresse}
+                          </div>
+                        ) : <span style={{ color: 'var(--text-disabled)' }}>—</span>}
+                      </td>
+                      <td><span className="badge badge-info">{cs.nb}</span></td>
+                      <td style={{ fontWeight: 700 }}>{formatCurrency(cs.ca, devise)}</td>
+                      <td>
+                        <div className="flex gap-2">
+                          {(isAdmin || permissions.modifierClient) && (
+                            <button className="btn-icon" onClick={() => openEdit(c)} title="Modifier">
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                          {(isAdmin || permissions.supprimerClient) && (
+                            <button className="btn-icon danger" onClick={() => setConfirmDelete(c)} title="Supprimer">
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
+        {!loading && (
+          <Pagination
+            totalItems={clients.filter(c =>
+              `${c.nom} ${c.prenom} ${c.telephone} ${c.adresse || ''}`.toLowerCase().includes(search.toLowerCase())
+            ).length}
+            itemsPerPage={itemsPerPage}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
+        )}
       </div>
 
       {/* Add/Edit Modal */}

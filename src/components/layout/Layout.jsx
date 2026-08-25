@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell, MessageCircle, PiggyBank
+  Bell, MessageCircle, PiggyBank, FileImage, Megaphone
 } from 'lucide-react';
 import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
@@ -17,6 +17,8 @@ const ALL_NAV_ITEMS = [
   { path: '/clients',      label: 'Clients',           Icon: Users },
   { path: '/voyages',      label: 'Voyages',           Icon: Truck },
   { path: '/depenses',     label: 'Dépenses',          Icon: TrendingDown },
+  { path: '/communiques',  label: 'Communiqués',       Icon: Megaphone },
+  { path: '/flyer',        label: 'Flyer',             Icon: FileImage },
   { path: '/epargnes',     label: 'Épargne',           Icon: PiggyBank, adminOnly: true },
   { path: '/statistiques', label: 'Statistiques',      Icon: BarChart2, adminOnly: true },
 ];

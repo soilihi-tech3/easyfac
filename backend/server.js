@@ -264,11 +264,29 @@ app.put('/api/clients/:id', async (req, res) => {
 });
 
 app.delete('/api/clients/:id', async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM clients WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
+    await connection.beginTransaction();
+
+    // 1. Unlink client from any existing invoices as sender or recipient
+    await connection.query('UPDATE factures SET expediteurId = NULL WHERE expediteurId = ?', [req.params.id]);
+    await connection.query('UPDATE factures SET destinataireId = NULL WHERE destinataireId = ?', [req.params.id]);
+
+    // 2. Delete the client (supporting multi-tenant boutique_id and null boutique_id)
+    if (req.user.boutique_id) {
+      await connection.query('DELETE FROM clients WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);
+    } else {
+      await connection.query('DELETE FROM clients WHERE id = ?', [req.params.id]);
+    }
+
+    await connection.commit();
     res.json({ success: true });
   } catch (error) {
+    await connection.rollback();
+    console.error("Error deleting client:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
   }
 });
 
@@ -317,11 +335,28 @@ app.put('/api/voyages/:id', async (req, res) => {
 });
 
 app.delete('/api/voyages/:id', async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM voyages WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
+    await connection.beginTransaction();
+
+    await connection.query('UPDATE factures SET voyageId = NULL WHERE voyageId = ?', [req.params.id]);
+    await connection.query('UPDATE depenses SET voyageId = NULL WHERE voyageId = ?', [req.params.id]);
+    await connection.query('UPDATE epargnes SET voyageId = NULL WHERE voyageId = ?', [req.params.id]);
+
+    if (req.user.boutique_id) {
+      await connection.query('DELETE FROM voyages WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);
+    } else {
+      await connection.query('DELETE FROM voyages WHERE id = ?', [req.params.id]);
+    }
+
+    await connection.commit();
     res.json({ success: true });
   } catch (error) {
+    await connection.rollback();
+    console.error("Error deleting voyage:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
   }
 });
 
@@ -789,11 +824,28 @@ app.put('/api/factures/:id', async (req, res) => {
 });
 
 app.delete('/api/factures/:id', async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    await pool.query('DELETE FROM factures WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
+    await connection.beginTransaction();
+    
+    // 1. Delete associated articles first to prevent MySQL foreign key constraint failure
+    await connection.query('DELETE FROM facture_articles WHERE factureId = ?', [req.params.id]);
+
+    // 2. Delete invoice by ID (supporting both multi-tenant boutique_id and null boutique_id)
+    if (req.user.boutique_id) {
+      await connection.query('DELETE FROM factures WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);
+    } else {
+      await connection.query('DELETE FROM factures WHERE id = ?', [req.params.id]);
+    }
+
+    await connection.commit();
     res.json({ success: true });
   } catch (error) {
+    await connection.rollback();
+    console.error("Error deleting invoice:", error);
     res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
   }
 });
 

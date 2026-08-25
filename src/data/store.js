@@ -167,6 +167,11 @@ const apiCall = async (url, method = 'GET', body = null) => {
   }
 
   const res = await fetch(`${API_URL}${url}`, options);
+  const contentType = res.headers.get('content-type');
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new Error('Le serveur backend a retourné une réponse non-JSON ou est en cours de démarrage.');
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Erreur réseau');

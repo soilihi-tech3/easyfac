@@ -32,13 +32,19 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password: password.trim() })
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Le serveur backend est en cours de réveil ou indisponible. Veuillez patienter quelques secondes et réessayer.');
+      }
+
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.error || 'Erreur de connexion');
-      
+
       login(data.user, data.token);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Erreur de connexion au serveur');
     } finally {
       setLoading(false);
     }

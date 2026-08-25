@@ -116,6 +116,10 @@ class WhatsAppManager {
           '--disable-renderer-backgrounding',
           '--disable-web-security',
           '--allow-running-insecure-content',
+          '--renderer-process-limit=1',
+          '--js-flags=--max-old-space-size=128',
+          '--disable-software-rasterizer',
+          '--memory-pressure-off',
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
         if (!isMac) baseArgs.push('--no-zygote');
@@ -148,6 +152,10 @@ class WhatsAppManager {
         };
 
         this.clients.set(boutiqueId, clientData);
+
+        client.on('loading_screen', (percent, message) => {
+          console.log(`WhatsApp Loading for boutique ${boutiqueId}: ${percent}% - ${message}`);
+        });
 
         client.on('qr', async (qr) => {
           console.log(`WhatsApp QR Code generated for boutique ${boutiqueId}`);

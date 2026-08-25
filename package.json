@@ -22,7 +22,8 @@
     "dev": "concurrently \"npm run start:front\" \"npm run start:back\"",
     "start:front": "react-scripts start",
     "start:back": "cd backend && npm run dev",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "postinstall": "npx puppeteer browsers install chrome || true"
   },
   "proxy": "http://localhost:3001",
   "browserslist": {

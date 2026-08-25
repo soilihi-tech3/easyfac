@@ -1,4 +1,5 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const puppeteer = require('puppeteer');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
@@ -41,13 +42,44 @@ class WhatsAppManager {
       ];
 
       if (!isMac) {
-        puppeteerArgs.push('--no-zygote', '--js-flags=--max-old-space-size=150');
+        puppeteerArgs.push('--no-zygote', '--single-process', '--js-flags=--max-old-space-size=150');
+      }
+
+      let executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+      if (!executablePath) {
+        try {
+          executablePath = puppeteer.executablePath();
+        } catch (e) {
+          console.warn('Puppeteer default executablePath not available:', e.message);
+        }
+      }
+
+      if (!executablePath || (!isMac && !fs.existsSync(executablePath))) {
+        const possibleLinuxPaths = [
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/opt/google/chrome/chrome'
+        ];
+        for (const p of possibleLinuxPaths) {
+          if (fs.existsSync(p)) {
+            executablePath = p;
+            console.log(`Detected Linux system Chrome at: ${p}`);
+            break;
+          }
+        }
+      }
+
+      if (executablePath) {
+        console.log(`Using Chrome binary for WhatsApp Puppeteer: ${executablePath}`);
       }
 
       const client = new Client({
-        authStrategy: new LocalAuth({ clientId: boutiqueId }),
+        authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
         puppeteer: {
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+          executablePath: executablePath || undefined,
+          headless: true,
           args: puppeteerArgs
         }
       });

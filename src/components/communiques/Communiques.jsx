@@ -112,11 +112,14 @@ export default function Communiques() {
       const clientMap = new Map();
 
       voyageFactures.forEach(f => {
+        // Seul l'expéditeur (le client qui a déposé et payé le colis) doit recevoir le message
         if (f.expediteur && f.expediteur.telephone) {
           clientMap.set(f.expediteur.id || f.expediteur.telephone, f.expediteur);
-        }
-        if (f.destinataire && f.destinataire.telephone) {
-          clientMap.set(f.destinataire.id || f.destinataire.telephone, f.destinataire);
+        } else if (f.clientId) {
+          const clientExp = allClients.find(c => c.id === f.clientId);
+          if (clientExp && clientExp.telephone) {
+            clientMap.set(clientExp.id, clientExp);
+          }
         }
       });
       return Array.from(clientMap.values());
@@ -316,7 +319,7 @@ export default function Communiques() {
                   ))}
                 </select>
                 <div className="target-summary-info">
-                  🎯 <b>{targetedClients.length} client(s)</b> ayant expédié sur ce voyage ont été trouvés.
+                  🎯 <b>{targetedClients.length} expéditeur(s)</b> ayant envoyé un colis sur ce voyage.
                 </div>
               </div>
             )}

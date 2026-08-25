@@ -178,6 +178,8 @@ class WhatsAppManager {
 
         client.on('authenticated', () => {
           console.log(`WhatsApp Authenticated for boutique ${boutiqueId}`);
+          clientData.status = 'CONNECTED';
+          clientData.qrCodeUrl = null;
         });
 
         client.on('auth_failure', async msg => {

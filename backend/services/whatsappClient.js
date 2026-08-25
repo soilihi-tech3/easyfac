@@ -130,6 +130,7 @@ class WhatsAppManager {
             executablePath: executablePath || undefined,
             headless: true,
             bypassCSP: true,
+            timeout: 90000,
             args: puppeteerArgs
           }
         });

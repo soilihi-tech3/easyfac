@@ -1,4 +1,13 @@
 require('dotenv').config();
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('Unhandled Rejection caught (prevented server crash):', reason ? (reason.message || reason) : reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception caught (prevented server crash):', err ? (err.message || err) : err);
+});
+
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');

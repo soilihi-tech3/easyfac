@@ -166,22 +166,42 @@ class WhatsAppManager {
           console.log(`WhatsApp Authenticated for boutique ${boutiqueId}`);
         });
 
-        client.on('auth_failure', msg => {
+        client.on('auth_failure', async msg => {
           console.error(`WhatsApp Authentication failure for boutique ${boutiqueId}`, msg);
           clientData.status = 'AUTH_FAILURE';
+          clientData.qrCodeUrl = null;
+          this.clients.delete(boutiqueId);
+          try { await client.destroy(); } catch (e) {}
+          const authPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+          if (fs.existsSync(authPath)) {
+            try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (e) {}
+          }
         });
 
-        client.on('disconnected', (reason) => {
-          console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}`, reason);
+        client.on('disconnected', async (reason) => {
+          console.log(`WhatsApp Client was disconnected for boutique ${boutiqueId}:`, reason);
           clientData.status = 'DISCONNECTED';
           clientData.phoneConnected = null;
+          clientData.qrCodeUrl = null;
+          this.clients.delete(boutiqueId);
+          try { await client.destroy(); } catch (e) {}
+          const authPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+          if (fs.existsSync(authPath)) {
+            try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (e) {}
+          }
         });
 
         console.log(`Starting WhatsApp client initialization for boutique ${boutiqueId}...`);
         client.initialize().catch(err => {
           const msg = err ? String(err.message || err) : '';
-          if (msg.includes('Execution context was destroyed') || msg.includes('Navigating frame was detached') || msg.includes('LifecycleWatcher disposed')) {
-            console.warn(`WhatsApp client frame navigation reset for boutique ${boutiqueId}, continuing background loading...`);
+          if (
+            msg.includes('Execution context was destroyed') ||
+            msg.includes('Navigating frame was detached') ||
+            msg.includes('LifecycleWatcher disposed') ||
+            msg.includes('Target closed') ||
+            msg.includes('Protocol error')
+          ) {
+            console.warn(`WhatsApp client background navigation/protocol reset for boutique ${boutiqueId}, continuing...`);
             return;
           }
           console.error(`Failed to initialize WhatsApp client for ${boutiqueId}:`, err);

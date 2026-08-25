@@ -4,6 +4,12 @@ const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 
+// Ensure Puppeteer uses local backend/.cache/puppeteer folder
+const projectCacheDir = path.join(__dirname, '../.cache/puppeteer');
+if (fs.existsSync(projectCacheDir)) {
+  process.env.PUPPETEER_CACHE_DIR = projectCacheDir;
+}
+
 class WhatsAppManager {
   constructor() {
     this.clients = new Map(); // boutiqueId => ClientData

@@ -115,7 +115,8 @@ class WhatsAppManager {
           '--disable-background-timer-throttling',
           '--disable-renderer-backgrounding',
           '--disable-web-security',
-          '--allow-running-insecure-content'
+          '--allow-running-insecure-content',
+          '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
         if (!isMac) baseArgs.push('--no-zygote');
 
@@ -123,6 +124,10 @@ class WhatsAppManager {
 
         const client = new Client({
           authStrategy: new LocalAuth({ clientId: boutiqueId, dataPath: path.join(__dirname, '../.wwebjs_auth') }),
+          takeoverOnConflict: true,
+          takeoverTimeoutMs: 0,
+          qrMaxRetries: 10,
+          userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           webVersionCache: {
             type: 'local'
           },

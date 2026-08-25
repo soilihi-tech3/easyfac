@@ -53,7 +53,8 @@ export default function Parametres() {
     };
 
     fetchWaStatus();
-    interval = setInterval(fetchWaStatus, 10000);
+    // Real-time fast polling (2s) so scanning the QR code detects connection immediately
+    interval = setInterval(fetchWaStatus, 2000);
     return () => clearInterval(interval);
   }, []);
 

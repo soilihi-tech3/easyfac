@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import FactureModal from './FactureModal';
 import ReceiptModal from './ReceiptModal';
 import Pagination from '../common/Pagination';
@@ -23,12 +24,15 @@ const STATUT_CFG = {
 
 export default function Factures() {
   const { user } = useAuth();
+  const location = useLocation();
   const [factures, setFactures] = useState(() => {
     const cached = getFacturesCache();
     return [...cached].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   });
   const [search, setSearch] = useState('');
-  const [filterStatut, setFilterStatut] = useState('');
+  const [filterStatut, setFilterStatut] = useState(() => {
+    return location.state?.filterStatut || '';
+  });
   const [filterVoyage, setFilterVoyage] = useState('');
   const [filterPays, setFilterPays] = useState('');
   const [filterOverdue, setFilterOverdue] = useState(false);

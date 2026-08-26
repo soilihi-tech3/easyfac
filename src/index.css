@@ -697,6 +697,7 @@ tbody tr:hover { background: var(--bg-card-hover); }
   flex: 1;
   min-width: 120px;
   transition: all var(--transition);
+  cursor: pointer;
 }
 .mini-stat:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .mini-icon {

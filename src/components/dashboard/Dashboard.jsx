@@ -270,20 +270,20 @@ export default function Dashboard() {
   ];
 
   const miniStats = [
-    { Icon: Users,       label: 'Clients',    val: stats.totalClients,    color: 'var(--info)' },
-    { Icon: FileText,    label: 'Factures',   val: stats.totalFactures,   color: 'var(--brand)' },
-    { Icon: Truck,       label: 'Voyages',    val: stats.totalVoyages || 0, color: 'var(--purple)', iconBg: 'var(--purple-muted)' },
+    { Icon: Users,       label: 'Clients',    val: stats.totalClients,    color: 'var(--info)', path: '/clients' },
+    { Icon: FileText,    label: 'Factures',   val: stats.totalFactures,   color: 'var(--brand)', path: '/factures' },
+    { Icon: Truck,       label: 'Voyages',    val: stats.totalVoyages || 0, color: 'var(--purple)', iconBg: 'var(--purple-muted)', path: '/voyages' },
     {
       Icon: CheckCircle, label: 'Payées',     val: stats.facturesPaye,    color: 'var(--success)',
-      iconBg: 'var(--success-muted)'
+      iconBg: 'var(--success-muted)', path: '/factures', state: { filterStatut: 'paye' }
     },
     {
       Icon: Clock,       label: 'Partielles', val: stats.facturesPartiel, color: 'var(--warning)',
-      iconBg: 'var(--warning-muted)'
+      iconBg: 'var(--warning-muted)', path: '/factures', state: { filterStatut: 'partiel' }
     },
     {
       Icon: Activity,    label: 'Impayées',   val: stats.facturesImpaye,  color: 'var(--danger)',
-      iconBg: 'var(--danger-muted)'
+      iconBg: 'var(--danger-muted)', path: '/factures', state: { filterStatut: 'non_paye' }
     },
   ];
 
@@ -318,7 +318,15 @@ export default function Dashboard() {
       {/* ─── Mini Stats ─── */}
       <div className="mini-stats">
         {miniStats.map((m, i) => (
-          <div key={i} className="mini-stat">
+          <div
+            key={i}
+            className="mini-stat"
+            onClick={() => {
+              if (m.path) {
+                navigate(m.path, { state: m.state });
+              }
+            }}
+          >
             <div className="mini-icon" style={{ background: m.iconBg || 'var(--bg-elevated)', color: m.color }}>
               <m.Icon size={16} strokeWidth={1.8} />
             </div>

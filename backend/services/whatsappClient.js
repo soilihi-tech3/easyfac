@@ -109,9 +109,13 @@ class WhatsAppManager {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--disable-gpu',
+          '--disable-extensions',
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
-        if (!isMac) baseArgs.push('--no-zygote');
+        if (!isMac) {
+          baseArgs.push('--no-zygote');
+          baseArgs.push('--single-process'); // Crucial to prevent RAM crashes in free tiers
+        }
 
         const puppeteerArgs = Array.from(new Set([...baseArgs, ...sparticuzArgs]));
 
@@ -121,6 +125,11 @@ class WhatsAppManager {
           takeoverTimeoutMs: 0,
           qrMaxRetries: 10,
           userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+            strict: false
+          },
           puppeteer: {
             executablePath: executablePath || undefined,
             headless: true,

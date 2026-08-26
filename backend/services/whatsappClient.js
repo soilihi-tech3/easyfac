@@ -1,53 +1,13 @@
-const { Client, LocalAuth, RemoteAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const puppeteer = require('puppeteer');
 const qrcode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-const { RedisStore } = require('wwebjs-redis');
-const { createClient } = require('redis');
 
 // Ensure Puppeteer uses local backend/.cache/puppeteer folder
 const projectCacheDir = path.join(__dirname, '../.cache/puppeteer');
 if (fs.existsSync(projectCacheDir)) {
   process.env.PUPPETEER_CACHE_DIR = projectCacheDir;
-}
-
-// ---- Upstash Redis Connection for Session Persistence ----
-let redisClient = null;
-let redisStore = null;
-
-async function getRedisStore() {
-  if (redisStore) return redisStore;
-  
-  const redisUrl = process.env.REDIS_URL || 'rediss://default:gQAAAAAAAqaQAAIgcDEyODY0MTdlODE2ZTg0YjdjYTYwOTcwNzhlOTQzM2QxOA@hot-iguana-173712.upstash.io:6379';
-  if (!redisUrl) {
-    console.log('No REDIS_URL configured. Falling back to LocalAuth.');
-    return null;
-  }
-
-  try {
-    console.log('Connecting to Upstash Redis for WhatsApp RemoteAuth...');
-    redisClient = createClient({
-      url: redisUrl,
-      socket: {
-        tls: redisUrl.startsWith('rediss://') || redisUrl.includes('upstash.io'),
-        rejectUnauthorized: false
-      }
-    });
-
-    redisClient.on('error', (err) => console.warn('Redis Connection Warning:', err.message));
-    await redisClient.connect();
-    console.log('Successfully connected to Upstash Redis.');
-
-    redisStore = new RedisStore({
-      redis: redisClient,
-      keyPrefix: 'easyfac_wa_session:'
-    });
-    return redisStore;
-  } catch (err) {
-    console.error('Failed to initialize Redis Store:', err.message);
-    return null;
-  }
 }
 
 class WhatsAppManager {
@@ -142,6 +102,34 @@ class WhatsAppManager {
           console.log('No explicit executablePath verified. Using Puppeteer default browser launcher.');
         }
 
+        const baseSessionPath = process.env.SESSION_PATH || path.join(__dirname, '../.wwebjs_auth');
+        
+        // Ensure the directory exists
+        if (!fs.existsSync(baseSessionPath)) {
+          try { fs.mkdirSync(baseSessionPath, { recursive: true }); } catch (e) {}
+        }
+
+        // 🧹 [Session Cleaner] Delete bloated cache folders before launching to save storage
+        const sessionPath = path.join(baseSessionPath, `session-${boutiqueId}`);
+        if (fs.existsSync(sessionPath)) {
+          const pathsToClean = [
+            path.join(sessionPath, 'Default/Cache'),
+            path.join(sessionPath, 'Default/Code Cache'),
+            path.join(sessionPath, 'Default/CacheStorage'),
+            path.join(sessionPath, 'Default/Service Worker/CacheStorage')
+          ];
+          for (const cleanPath of pathsToClean) {
+            if (fs.existsSync(cleanPath)) {
+              try {
+                fs.rmSync(cleanPath, { recursive: true, force: true });
+                console.log(`🧹 [Session Cleaner] Cleared bloated folder: ${cleanPath}`);
+              } catch (e) {
+                console.warn(`[Session Cleaner] Failed to delete cache folder ${cleanPath}:`, e.message);
+              }
+            }
+          }
+        }
+
         const baseArgs = [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -152,6 +140,11 @@ class WhatsAppManager {
           '--disable-extensions',
           '--mute-audio',
           '--disable-remote-fonts',
+          '--disable-cache',
+          '--disk-cache-size=0',
+          '--media-cache-size=0',
+          '--disk-cache-dir=/tmp/chrome-cache-' + boutiqueId,
+          '--js-flags=--no-compilation-cache',
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
         if (!isMac) {
@@ -161,21 +154,11 @@ class WhatsAppManager {
 
         const puppeteerArgs = Array.from(new Set([...baseArgs, ...sparticuzArgs]));
 
-        const store = await getRedisStore();
-        const authStrategy = store 
-          ? new RemoteAuth({
-              clientId: boutiqueId,
-              store: store,
-              backupSyncIntervalMs: 60000,
-              dataPath: path.join(__dirname, '../.wwebjs_auth')
-            })
-          : new LocalAuth({ 
-              clientId: boutiqueId, 
-              dataPath: path.join(__dirname, '../.wwebjs_auth') 
-            });
-
         const client = new Client({
-          authStrategy: authStrategy,
+          authStrategy: new LocalAuth({ 
+            clientId: boutiqueId, 
+            dataPath: baseSessionPath 
+          }),
           takeoverOnConflict: true,
           takeoverTimeoutMs: 0,
           qrMaxRetries: 10,
@@ -188,12 +171,6 @@ class WhatsAppManager {
             args: puppeteerArgs
           }
         });
-
-        if (store) {
-          client.on('remote_session_saved', () => {
-            console.log(`WhatsApp Remote Session saved to Redis for boutique ${boutiqueId}`);
-          });
-        }
 
         const clientData = {
           client,

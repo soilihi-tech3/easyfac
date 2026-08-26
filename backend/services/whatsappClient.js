@@ -145,8 +145,37 @@ class WhatsAppManager {
 
         this.clients.set(boutiqueId, clientData);
 
-        client.on('loading_screen', (percent, message) => {
+        const setupRequestInterception = async () => {
+          if (client.pupPage && !client.pupPage._hasInterception) {
+            try {
+              client.pupPage._hasInterception = true;
+              await client.pupPage.setRequestInterception(true);
+              client.pupPage.on('request', (req) => {
+                const url = req.url();
+                const type = req.resourceType();
+                if (
+                  ['image', 'media', 'font'].includes(type) ||
+                  url.includes('pps.whatsapp.net') || // Profile Pictures
+                  url.includes('sticker') || // Stickers
+                  url.includes('/dyn/media') || // Media downloads
+                  url.includes('telemetry') || // Telemetry
+                  url.includes('logging') // Logs
+                ) {
+                  req.abort();
+                } else {
+                  req.continue();
+                }
+              });
+              console.log(`🛡️ [RAM Saver] Activated Request Interception for boutique ${boutiqueId}`);
+            } catch (err) {
+              console.warn(`[RAM Saver] Failed to set request interception:`, err.message);
+            }
+          }
+        };
+
+        client.on('loading_screen', async (percent, message) => {
           console.log(`WhatsApp Loading for boutique ${boutiqueId}: ${percent}% - ${message}`);
+          await setupRequestInterception();
         });
 
         client.on('qr', async (qr) => {
@@ -157,6 +186,7 @@ class WhatsAppManager {
           } catch (err) {
             console.error('Error generating QR code data URL', err);
           }
+          await setupRequestInterception();
         });
 
         client.on('ready', () => {

@@ -112,8 +112,6 @@ class WhatsAppManager {
           '--disable-extensions',
           '--mute-audio',
           '--disable-remote-fonts',
-          '--blink-settings=imagesEnabled=false', // Block image loading to save massive RAM
-          '--js-flags=--max-old-space-size=256', // Limit V8 JavaScript heap to 256MB
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
         if (!isMac) {

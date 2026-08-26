@@ -31,6 +31,10 @@ export default function Parametres() {
   const [loading, setLoading] = useState(() => !getParametresCache());
   const [saving, setSaving] = useState(false);
   const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null, phone: null });
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [pairingCode, setPairingCode] = useState(null);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [connectMode, setConnectMode] = useState('qr'); // 'qr' | 'code'
   const { toast, refreshData, toggleTheme, isDark } = useApp();
 
   useEffect(() => {
@@ -142,6 +146,38 @@ export default function Parametres() {
     } catch (err) {
       toast('Erreur lors de la réinitialisation WhatsApp', 'error');
       setWaStatus({ status: 'DISCONNECTED', qr: null, phone: null });
+    }
+  };
+
+  const handleRequestPairingCode = async (e) => {
+    if (e) e.preventDefault();
+    if (!pairingPhone) {
+      toast('Veuillez entrer votre numéro de téléphone (avec l\'indicatif, ex: 2693345678 ou 33612345678)', 'warning');
+      return;
+    }
+    setPairingLoading(true);
+    setPairingCode(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/whatsapp/pairing-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ phoneNumber: pairingPhone })
+      });
+      const data = await res.json();
+      if (res.ok && data.pairingCode) {
+        setPairingCode(data.pairingCode);
+        toast('Code d\'association généré avec succès !');
+      } else {
+        toast(data.error || 'Erreur lors de la génération du code', 'error');
+      }
+    } catch (err) {
+      toast('Erreur lors de la demande du code d\'association', 'error');
+    } finally {
+      setPairingLoading(false);
     }
   };
 
@@ -430,39 +466,102 @@ export default function Parametres() {
                   </div>
                   <button className="btn btn-secondary" onClick={handleWaLogout}>Déconnecter</button>
                 </div>
-              ) : waStatus.status === 'QR_READY' && waStatus.qr ? (
-                <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                  <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--warning)', fontWeight: 600 }}>
-                    📱 Scannez ce QR code avec l'application WhatsApp de votre téléphone :<br/>
-                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Allez dans WhatsApp &gt; Réglages / Menu &gt; Appareils connectés &gt; Connecter un appareil</span>
-                  </div>
-                  <img src={waStatus.qr} alt="WhatsApp QR Code" style={{ maxWidth: 220, margin: '0 auto 14px auto', display: 'block', border: '3px solid var(--border-default)', borderRadius: 12, padding: 8, background: '#ffffff' }} />
-                  <button className="btn btn-secondary btn-sm" onClick={handleWaReconnect} style={{ margin: '0 auto' }}>
-                    🔄 Ré-générer un nouveau QR Code
-                  </button>
-                </div>
-              ) : waStatus.status === 'INITIALIZING' ? (
-                <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <div style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>
-                    ⏳ Initialisation du service WhatsApp en cours...
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Le QR Code va s'afficher d'ici quelques secondes (veuillez patienter).
-                  </div>
-                </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', flexWrap: 'wrap', gap: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 700 }}>
-                      WhatsApp Non Connecté
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Cliquez pour générer le QR Code et connecter votre téléphone.
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0' }}>
+                  <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--border-default)', paddingBottom: 10 }}>
+                    <button 
+                      type="button" 
+                      className={`btn btn-sm ${connectMode === 'qr' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setConnectMode('qr')}
+                      style={connectMode === 'qr' ? { background: '#25d366', borderColor: '#25d366', color: '#ffffff', fontWeight: 700 } : {}}
+                    >
+                      📱 Scan QR Code
+                    </button>
+                    <button 
+                      type="button" 
+                      className={`btn btn-sm ${connectMode === 'code' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setConnectMode('code')}
+                      style={connectMode === 'code' ? { background: '#25d366', borderColor: '#25d366', color: '#ffffff', fontWeight: 700 } : {}}
+                    >
+                      🔢 Code d'association (Sans Caméra)
+                    </button>
                   </div>
-                  <button className="btn btn-primary" onClick={handleWaReconnect} style={{ background: '#25d366', borderColor: '#25d366', color: '#ffffff', fontWeight: 700 }}>
-                    📲 Générer le QR Code
-                  </button>
+
+                  {connectMode === 'qr' ? (
+                    waStatus.status === 'QR_READY' && waStatus.qr ? (
+                      <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                        <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--warning)', fontWeight: 600 }}>
+                          📱 Scannez ce QR code avec l'application WhatsApp de votre téléphone :<br/>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Allez dans WhatsApp &gt; Réglages / Menu &gt; Appareils connectés &gt; Connecter un appareil</span>
+                        </div>
+                        <img src={waStatus.qr} alt="WhatsApp QR Code" style={{ maxWidth: 220, margin: '0 auto 14px auto', display: 'block', border: '3px solid var(--border-default)', borderRadius: 12, padding: 8, background: '#ffffff' }} />
+                        <button className="btn btn-secondary btn-sm" onClick={handleWaReconnect} style={{ margin: '0 auto' }}>
+                          🔄 Ré-générer un nouveau QR Code
+                        </button>
+                      </div>
+                    ) : waStatus.status === 'INITIALIZING' ? (
+                      <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                        <div style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>
+                          ⏳ Initialisation du service WhatsApp en cours...
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                          Le QR Code va s'afficher d'ici quelques secondes (veuillez patienter).
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 700 }}>
+                            WhatsApp Non Connecté
+                          </div>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                            Cliquez pour générer le QR Code ou utilisez l'onglet Code d'association.
+                          </div>
+                        </div>
+                        <button className="btn btn-primary" onClick={handleWaReconnect} style={{ background: '#25d366', borderColor: '#25d366', color: '#ffffff', fontWeight: 700 }}>
+                          📲 Générer le QR Code
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                        Entrez votre numéro WhatsApp (avec l'indicatif du pays sans le +, ex: <strong>2693345678</strong> ou <strong>33612345678</strong>) pour générer un <strong>code d'association à 8 chiffres</strong>.
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          placeholder="Ex: 2693345678" 
+                          value={pairingPhone}
+                          onChange={e => setPairingPhone(e.target.value)}
+                          style={{ maxWidth: 220, padding: '8px 12px' }}
+                        />
+                        <button 
+                          className="btn btn-primary" 
+                          onClick={handleRequestPairingCode}
+                          disabled={pairingLoading}
+                          style={{ background: '#25d366', borderColor: '#25d366', color: '#fff', fontWeight: 700 }}
+                        >
+                          {pairingLoading ? '⏳ Génération...' : '🔑 Obtenir le Code WhatsApp'}
+                        </button>
+                      </div>
+
+                      {pairingCode && (
+                        <div style={{ marginTop: 10, padding: 14, background: 'rgba(37, 211, 102, 0.1)', border: '2px dashed #25d366', borderRadius: 10, textAlign: 'center' }}>
+                          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                            📱 Entrez ce code dans WhatsApp sur votre téléphone :
+                          </div>
+                          <div style={{ fontSize: 26, fontWeight: 900, letterSpacing: 4, color: '#25d366', fontFamily: 'monospace' }}>
+                            {pairingCode}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>
+                            WhatsApp &gt; Appareils connectés &gt; Connecter un appareil &gt; Connecter avec le numéro de téléphone.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

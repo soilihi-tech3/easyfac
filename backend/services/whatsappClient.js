@@ -109,17 +109,6 @@ class WhatsAppManager {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--disable-gpu',
-          '--disable-extensions',
-          '--disable-component-update',
-          '--disable-background-networking',
-          '--disable-background-timer-throttling',
-          '--disable-renderer-backgrounding',
-          '--disable-web-security',
-          '--allow-running-insecure-content',
-          '--renderer-process-limit=1',
-          '--js-flags=--max-old-space-size=96',
-          '--disable-software-rasterizer',
-          '--memory-pressure-off',
           '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         ];
         if (!isMac) baseArgs.push('--no-zygote');
@@ -132,15 +121,11 @@ class WhatsAppManager {
           takeoverTimeoutMs: 0,
           qrMaxRetries: 10,
           userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          webVersionCache: {
-            type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1014133500-alpha.html'
-          },
           puppeteer: {
             executablePath: executablePath || undefined,
             headless: true,
-            bypassCSP: true,
             timeout: 90000,
+            protocolTimeout: 120000,
             args: puppeteerArgs
           }
         });
@@ -278,6 +263,44 @@ class WhatsAppManager {
   async reconnect(boutiqueId) {
     await this.logout(boutiqueId);
     return await this.getClientData(boutiqueId);
+  }
+
+  async requestPairingCode(boutiqueId, phoneNumber) {
+    if (!boutiqueId) throw new Error("boutiqueId requis");
+    const cleanPhone = String(phoneNumber).replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 7) {
+      throw new Error("Numéro de téléphone invalide (veuillez inclure l'indicatif du pays sans le +, ex: 221711692537)");
+    }
+
+    let clientData = this.clients.get(boutiqueId);
+    if (!clientData || !clientData.client) {
+      clientData = await this.getClientData(boutiqueId);
+    }
+
+    if (!clientData || !clientData.client) {
+      throw new Error("Impossible d'initialiser le client WhatsApp.");
+    }
+
+    // Wait up to 20 seconds for Puppeteer page to be attached and ready for QR / Pairing
+    let attempts = 0;
+    while ((!clientData.client.pupPage || clientData.status === 'INITIALIZING') && attempts < 40) {
+      await new Promise(r => setTimeout(r, 500));
+      attempts++;
+      clientData = this.clients.get(boutiqueId) || clientData;
+    }
+
+    if (!clientData.client.pupPage) {
+      throw new Error("Le navigateur WhatsApp est en cours de démarrage. Veuillez ré-essayer dans 5 secondes.");
+    }
+
+    try {
+      const code = await clientData.client.requestPairingCode(cleanPhone);
+      clientData.pairingCode = code;
+      return code;
+    } catch (err) {
+      console.error(`Error requesting pairing code for ${boutiqueId}:`, err);
+      throw new Error("Impossible de générer le code d'association. Assurez-vous que le numéro est correct et réessayez.");
+    }
   }
 
   async sendText(boutiqueId, phone, message) {

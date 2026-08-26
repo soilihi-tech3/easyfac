@@ -35,6 +35,21 @@ router.post('/reconnect', async (req, res) => {
   }
 });
 
+router.post('/pairing-code', async (req, res) => {
+  try {
+    const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);
+    if (!boutiqueId) return res.status(400).json({ error: "Boutique ID manquant" });
+
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) return res.status(400).json({ error: "Numéro de téléphone requis" });
+
+    const code = await whatsappManager.requestPairingCode(boutiqueId, phoneNumber);
+    res.json({ success: true, pairingCode: code });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Erreur lors de la génération du code d'association" });
+  }
+});
+
 router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
   try {
     const boutiqueId = req.user.boutique_id || (req.user.role === 'superadmin' ? req.user.id : null);

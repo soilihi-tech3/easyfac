@@ -13,6 +13,7 @@ const cors = require('cors');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const exchangeRatesService = require('./services/exchangeRates');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'easyfac-super-secret-key-2026';
 
@@ -128,8 +129,8 @@ app.post('/api/auth/login', async (req, res) => {
 
 // JWT Middleware
 const authMiddleware = async (req, res, next) => {
-  // Allow status and cron/reminders endpoints without JWT
-  if (req.path === '/status' || req.path === '/cron/reminders') return next();
+  // Allow status, cron/reminders, and exchange-rates endpoints without JWT
+  if (req.path === '/status' || req.path === '/cron/reminders' || req.path === '/exchange-rates') return next();
   
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'Token manquant' });
@@ -448,6 +449,16 @@ app.delete('/api/depenses/:id', async (req, res) => {
     }
     await pool.query(query, params);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- EXCHANGE RATES ---
+app.get('/api/exchange-rates', async (req, res) => {
+  try {
+    const data = await exchangeRatesService.getRates();
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

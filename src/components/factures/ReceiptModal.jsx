@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getParametres, getVoyages, formatCurrency, formatDate, deleteFacture, API_URL } from '../../data/store';
+import { getParametres, getVoyages, formatCurrency, formatDate, deleteFacture, convertCurrency, API_URL } from '../../data/store';
 import { Printer, MessageCircle, X, Bell, FileText, Send, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import html2pdf from 'html2pdf.js';
@@ -406,7 +406,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
                     </div>
                     {devise !== 'KMF' && (
                       <div style={{ fontSize: 11, fontWeight: 800, color: '#a855f7', marginTop: 2 }}>
-                        Soit : {formatCurrency(facture.montantComores * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
+                        Soit : {formatCurrency(convertCurrency(facture.montantComores, devise, 'KMF'), 'KMF')}
                       </div>
                     )}
                   </div>
@@ -670,7 +670,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
                 <div style={{ fontSize: 11, fontWeight: 700 }}>Solde Comores : {formatCurrency(facture.montantComores, devise)}</div>
                 {devise !== 'KMF' && (
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: '#d97706', marginTop: 2 }}>
-                    Soit : {formatCurrency(facture.montantComores * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
+                    Soit : {formatCurrency(convertCurrency(facture.montantComores, devise, 'KMF'), 'KMF')}
                   </div>
                 )}
               </div>
@@ -906,7 +906,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
                 <div style={{ fontSize: 11, fontWeight: 700 }}>Solde Comores : {formatCurrency(facture.montantComores, devise)}</div>
                 {devise !== 'KMF' && (
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0b57d0', marginTop: 2 }}>
-                    Soit : {formatCurrency(facture.montantComores * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
+                    Soit : {formatCurrency(convertCurrency(facture.montantComores, devise, 'KMF'), 'KMF')}
                   </div>
                 )}
               </div>

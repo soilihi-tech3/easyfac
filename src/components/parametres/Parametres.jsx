@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getParametres, updateParametres, getVoyages, getParametresCache, getVoyagesCache, API_URL } from '../../data/store';
+import { getParametres, updateParametres, getVoyages, getParametresCache, getVoyagesCache, API_URL, convertCurrency } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import {
   Save, Building2, Image, Settings2, FileText as FileIcon,
@@ -381,19 +381,7 @@ export default function Parametres() {
                   const oldDevise = params.config?.devise || 'FCFA';
                   const newDevise = e.target.value;
                   let newPrixKg = params.config?.prixKg || 6000;
-                  if (oldDevise === 'FCFA' && newDevise === 'EUR') {
-                    newPrixKg = Math.round((newPrixKg / 655.957) * 100) / 100;
-                  } else if (oldDevise === 'EUR' && newDevise === 'FCFA') {
-                    newPrixKg = Math.round(newPrixKg * 655.957);
-                  } else if (oldDevise === 'FCFA' && newDevise === 'KMF') {
-                    newPrixKg = Math.round(newPrixKg * 0.75);
-                  } else if (oldDevise === 'KMF' && newDevise === 'FCFA') {
-                    newPrixKg = Math.round(newPrixKg / 0.75);
-                  } else if (oldDevise === 'EUR' && newDevise === 'KMF') {
-                    newPrixKg = Math.round(newPrixKg * 491.96775);
-                  } else if (oldDevise === 'KMF' && newDevise === 'EUR') {
-                    newPrixKg = Math.round((newPrixKg / 491.96775) * 100) / 100;
-                  }
+                  newPrixKg = Math.round(convertCurrency(newPrixKg, oldDevise, newDevise) * 100) / 100;
                   setParams(p => ({
                     ...p,
                     config: {

@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell, MessageCircle, PiggyBank, FileImage, Megaphone
+  Bell, MessageCircle, PiggyBank, FileImage, Megaphone, ChevronDown
 } from 'lucide-react';
 import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
@@ -31,7 +31,7 @@ const SETTINGS_ITEMS = [
 export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { nomEntreprise, toggleTheme, isDark, refresh, devise } = useApp();
+  const { nomEntreprise, toggleTheme, isDark, refresh, devise, viewDevise, changeViewDevise, rates } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -75,6 +75,29 @@ export default function Layout({ children }) {
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
+
+  // 💱 CURRENCY SWITCHER DROPDOWN STATE & LOGIC
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+  const currencyDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (currencyDropdownRef.current && !currencyDropdownRef.current.contains(e.target)) {
+        setShowCurrencyDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const CURRENCIES = [
+    { value: 'FCFA', label: 'FCFA', symbol: 'FCFA', flag: '🇸🇳', desc: 'Franc CFA (Sénégal)' },
+    { value: 'EUR', label: 'EUR', symbol: '€', flag: '🇪🇺', desc: 'Euro' },
+    { value: 'USD', label: 'USD', symbol: '$', flag: '🇺🇸', desc: 'Dollar US' },
+    { value: 'KMF', label: 'KMF', symbol: 'CF', flag: '🇰🇲', desc: 'Franc Comorien' },
+  ];
+
+  const currentCurrency = CURRENCIES.find(c => c.value === viewDevise) || CURRENCIES[0];
 
   // Fetch and compile unread notifications in real-time
   useEffect(() => {
@@ -372,6 +395,100 @@ export default function Layout({ children }) {
           </div>
 
           <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
+            {/* 💱 PREMIUM CURRENCY SWITCHER DROPDOWN */}
+            <div style={{ position: 'relative' }} ref={currencyDropdownRef}>
+              <button
+                onClick={() => setShowCurrencyDropdown(o => !o)}
+                style={{
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)',
+                  height: '38px',
+                  padding: '0 12px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  fontSize: '13px',
+                  transition: 'all 0.2s',
+                  userSelect: 'none'
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                title="Changer la devise d'affichage"
+              >
+                <span style={{ fontSize: '15px' }}>{currentCurrency.flag}</span>
+                <span>{currentCurrency.label}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: '500' }}>({currentCurrency.symbol})</span>
+                <ChevronDown size={12} style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: showCurrencyDropdown ? 'rotate(180deg)' : 'none' }} />
+              </button>
+
+              {showCurrencyDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  width: '220px',
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: '12px',
+                  boxShadow: 'var(--shadow-xl)',
+                  zIndex: 500,
+                  padding: '6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}>
+                  {CURRENCIES.map(c => {
+                    const active = c.value === viewDevise;
+                    return (
+                      <button
+                        key={c.value}
+                        onClick={() => {
+                          changeViewDevise(c.value);
+                          setShowCurrencyDropdown(false);
+                        }}
+                        style={{
+                          background: active ? 'var(--brand-muted)' : 'transparent',
+                          border: 'none',
+                          color: active ? 'var(--brand)' : 'var(--text-primary)',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          width: '100%',
+                          transition: 'all 0.15s',
+                          fontWeight: active ? '700' : '500',
+                          fontSize: '13px'
+                        }}
+                        onMouseEnter={e => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'var(--bg-elevated)';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!active) {
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <span style={{ fontSize: '16px' }}>{c.flag}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                          <span style={{ fontWeight: 700 }}>{c.label} ({c.symbol})</span>
+                          <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: '400' }}>{c.desc}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* 🔔 ADMIN NOTIFICATIONS BELL BUTTON */}
             {isAdmin && (
               <div style={{ position: 'relative' }} ref={dropdownRef}>

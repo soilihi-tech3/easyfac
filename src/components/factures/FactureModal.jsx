@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
-import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, getVoyagesCache, getClientsCache, getParametresCache } from '../../data/store';
+import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, getVoyagesCache, getClientsCache, getParametresCache, convertCurrency } from '../../data/store';
 import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 const MODES_PAIEMENT = [
@@ -551,11 +551,11 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                         <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--brand-muted)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', gap: 10 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Equivalent en Franc Comorien (KMF)</span>
                           <strong style={{ fontSize: 14, color: 'var(--brand)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
-                            {formatCurrency((parseFloat(form.montantComores) || 0) * (devise === 'EUR' ? 491.96775 : 0.75), 'KMF')}
+                            {formatCurrency(convertCurrency(parseFloat(form.montantComores) || 0, devise, 'KMF'), 'KMF')}
                           </strong>
                         </div>
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                          Taux de conversion appliqué : 1 {devise} = {devise === 'EUR' ? '491.97' : '0.75'} KMF
+                          Taux de conversion appliqué : 1 {devise} = {convertCurrency(1, devise, 'KMF').toFixed(2)} KMF
                         </p>
                       </>
                     )}

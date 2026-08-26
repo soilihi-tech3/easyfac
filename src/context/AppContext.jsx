@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, Info } from 'lucide-react';
-import { getParametres, seedDemoData } from '../data/store';
+import { getParametres, updateParametres, seedDemoData, API_URL, setActiveCurrencyInfo, convertCurrency } from '../data/store';
 
 const AppContext = createContext(null);
 
@@ -8,6 +8,10 @@ export const AppProvider = ({ children }) => {
   const [params, setParams] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [refresh, setRefresh] = useState(0);
+  const [viewDevise, setViewDevise] = useState(() => localStorage.getItem('ef_view_devise') || 'FCFA');
+  const [rates, setRates] = useState(null);
+
+  const baseDevise = params?.config?.devise || 'FCFA';
 
   useEffect(() => {
     const init = async () => {
@@ -28,6 +32,30 @@ export const AppProvider = ({ children }) => {
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch exchange rates from the backend API
+  useEffect(() => {
+    const fetchRates = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/api/exchange-rates`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setRates(data.rates);
+        }
+      } catch (err) {
+        console.error('Error fetching exchange rates:', err);
+      }
+    };
+    fetchRates();
+  }, [refresh]);
+
+  // Synchronize store.js whenever devise, baseDevise or rates change
+  useEffect(() => {
+    setActiveCurrencyInfo(viewDevise, baseDevise, rates);
+  }, [viewDevise, baseDevise, rates]);
 
   const refreshData = useCallback(async () => {
     const p = await getParametres();
@@ -54,8 +82,14 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  const devise       = params?.config?.devise     || 'FCFA';
-  const prixKg       = params?.config?.prixKg     || 6000;
+  const changeViewDevise = useCallback((newDevise) => {
+    setViewDevise(newDevise);
+    localStorage.setItem('ef_view_devise', newDevise);
+    setRefresh(r => r + 1); // trigger reload on components
+  }, []);
+
+  const devise       = viewDevise;
+  const prixKg       = convertCurrency(params?.config?.prixKg || 6000, baseDevise, viewDevise, rates);
   const nomEntreprise = params?.entreprise?.nom    || 'EasyFac';
   const isDark       = params?.config?.modeSombre !== false;
 
@@ -66,7 +100,7 @@ export const AppProvider = ({ children }) => {
   };
 
   return (
-    <AppContext.Provider value={{ params, refreshData, toast, toggleTheme, devise, prixKg, nomEntreprise, isDark, refresh }}>
+    <AppContext.Provider value={{ params, refreshData, toast, toggleTheme, devise, prixKg, nomEntreprise, isDark, refresh, viewDevise, changeViewDevise, rates, baseDevise, convertCurrency }}>
       {children}
       <div className="toast-container">
         {toasts.map(t => (

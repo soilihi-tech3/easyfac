@@ -2,6 +2,90 @@
 
 export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
+// ---- Active Currency Information for Dynamic Viewing ----
+let activeViewDevise = 'FCFA';
+let baseDevise = 'FCFA';
+let activeRates = null;
+
+export const setActiveCurrencyInfo = (viewDevise, base, rates) => {
+  activeViewDevise = viewDevise || 'FCFA';
+  baseDevise = base || 'FCFA';
+  activeRates = rates;
+};
+
+export const convertCurrency = (amount, fromDevise, toDevise, rates) => {
+  if (amount === undefined || amount === null || isNaN(Number(amount))) return 0;
+  if (!fromDevise || !toDevise || fromDevise === toDevise) return Number(amount);
+  
+  const ratesObj = rates || activeRates;
+  if (!ratesObj) return Number(amount);
+  
+  const fromKey = fromDevise === 'FCFA' ? 'XOF' : fromDevise;
+  const toKey = toDevise === 'FCFA' ? 'XOF' : toDevise;
+  
+  const fromRate = ratesObj[fromKey];
+  const toRate = ratesObj[toKey];
+  
+  if (!fromRate || !toRate) return Number(amount);
+  
+  const amountInUSD = Number(amount) / fromRate;
+  return amountInUSD * toRate;
+};
+
+const convertFactureToView = (f) => {
+  if (!f) return f;
+  const cloned = { ...f };
+  cloned.prixKg = convertCurrency(f.prixKg, baseDevise, activeViewDevise);
+  cloned.fraisFret = convertCurrency(f.fraisFret, baseDevise, activeViewDevise);
+  cloned.montantTotal = convertCurrency(f.montantTotal, baseDevise, activeViewDevise);
+  cloned.montantPaye = convertCurrency(f.montantPaye, baseDevise, activeViewDevise);
+  cloned.montantComores = convertCurrency(f.montantComores, baseDevise, activeViewDevise);
+  
+  if (cloned.articles) {
+    cloned.articles = cloned.articles.map(a => ({
+      ...a,
+      prixUnitaire: convertCurrency(a.prixUnitaire, baseDevise, activeViewDevise),
+      total: convertCurrency(a.total, baseDevise, activeViewDevise)
+    }));
+  }
+  return cloned;
+};
+
+const convertFactureToBase = (data) => {
+  if (!data) return data;
+  const cloned = JSON.parse(JSON.stringify(data));
+  cloned.prixKg = convertCurrency(cloned.prixKg, activeViewDevise, baseDevise);
+  cloned.fraisFret = convertCurrency(cloned.fraisFret, activeViewDevise, baseDevise);
+  cloned.montantTotal = convertCurrency(cloned.montantTotal, activeViewDevise, baseDevise);
+  cloned.montantPaye = convertCurrency(cloned.montantPaye, activeViewDevise, baseDevise);
+  cloned.montantComores = convertCurrency(cloned.montantComores, activeViewDevise, baseDevise);
+  
+  if (cloned.articles) {
+    cloned.articles = cloned.articles.map(a => {
+      a.prixUnitaire = convertCurrency(a.prixUnitaire, activeViewDevise, baseDevise);
+      a.total = convertCurrency(a.total, activeViewDevise, baseDevise);
+      return a;
+    });
+  }
+  return cloned;
+};
+
+const convertDepenseToView = (d) => {
+  if (!d) return d;
+  return {
+    ...d,
+    montant: convertCurrency(d.montant, baseDevise, activeViewDevise)
+  };
+};
+
+const convertEpargneToView = (e) => {
+  if (!e) return e;
+  return {
+    ...e,
+    montant: convertCurrency(e.montant, baseDevise, activeViewDevise)
+  };
+};
+
 // Network helper for unique ID generation
 const generateLocalId = () => `local-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -331,16 +415,19 @@ export const deleteVoyage = async (id) => {
 
 // ---- FACTURES ----
 export const getFactures = async () => {
+  let data;
   try {
     if (isOnline()) {
-      const data = await apiCall('/api/factures');
+      data = await apiCall('/api/factures');
       setLocalCache('factures', data);
-      return data;
+    } else {
+      data = getLocalCache('factures');
     }
   } catch (e) {
     console.log('Falling back to local cache for factures...');
+    data = getLocalCache('factures');
   }
-  return getLocalCache('factures');
+  return data.map(convertFactureToView);
 };
 
 export const getNextNumero = async () => {
@@ -377,7 +464,8 @@ const processFactureClients = async (data) => {
 };
 
 export const addFacture = async (data) => {
-  const processedData = await processFactureClients(data);
+  const baseData = convertFactureToBase(data);
+  const processedData = await processFactureClients(baseData);
 
   if (!isOnline()) {
     const tempId = generateLocalId();
@@ -393,18 +481,19 @@ export const addFacture = async (data) => {
     setLocalCache('factures', list);
 
     pushToSyncQueue({ method: 'POST', url: '/api/factures', body: processedData, tempId });
-    return newFacture;
+    return convertFactureToView(newFacture);
   }
 
   const res = await apiCall('/api/factures', 'POST', processedData);
   const list = getLocalCache('factures');
   list.unshift(res);
   setLocalCache('factures', list);
-  return res;
+  return convertFactureToView(res);
 };
 
 export const updateFacture = async (id, data) => {
-  const processedData = await processFactureClients(data);
+  const baseData = convertFactureToBase(data);
+  const processedData = await processFactureClients(baseData);
 
   if (!isOnline()) {
     const list = getLocalCache('factures');
@@ -414,7 +503,7 @@ export const updateFacture = async (id, data) => {
       setLocalCache('factures', list);
     }
     pushToSyncQueue({ method: 'PUT', url: `/api/factures/${id}`, body: processedData });
-    return { id, ...processedData };
+    return convertFactureToView({ id, ...processedData });
   }
 
   const res = await apiCall(`/api/factures/${id}`, 'PUT', processedData);
@@ -424,7 +513,7 @@ export const updateFacture = async (id, data) => {
     list[idx] = res;
     setLocalCache('factures', list);
   }
-  return res;
+  return convertFactureToView(res);
 };
 
 export const deleteFacture = async (id) => {
@@ -443,24 +532,32 @@ export const deleteFacture = async (id) => {
 
 // ---- DEPENSES ----
 export const getDepenses = async () => {
+  let data;
   try {
     if (isOnline()) {
-      const data = await apiCall('/api/depenses');
+      data = await apiCall('/api/depenses');
       setLocalCache('depenses', data);
-      return data;
+    } else {
+      data = getLocalCache('depenses');
     }
   } catch (e) {
     console.log('Falling back to local cache for depenses...');
+    data = getLocalCache('depenses');
   }
-  return getLocalCache('depenses');
+  return data.map(convertDepenseToView);
 };
 
 export const addDepense = async (data) => {
+  const baseData = {
+    ...data,
+    montant: convertCurrency(data.montant, activeViewDevise, baseDevise)
+  };
+
   if (!isOnline()) {
     const tempId = generateLocalId();
     const newDepense = {
       id: tempId,
-      ...data,
+      ...baseData,
       createdAt: new Date().toISOString(),
       creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
     };
@@ -468,37 +565,42 @@ export const addDepense = async (data) => {
     list.unshift(newDepense);
     setLocalCache('depenses', list);
 
-    pushToSyncQueue({ method: 'POST', url: '/api/depenses', body: data, tempId });
-    return newDepense;
+    pushToSyncQueue({ method: 'POST', url: '/api/depenses', body: baseData, tempId });
+    return convertDepenseToView(newDepense);
   }
 
-  const res = await apiCall('/api/depenses', 'POST', data);
+  const res = await apiCall('/api/depenses', 'POST', baseData);
   const list = getLocalCache('depenses');
   list.unshift(res);
   setLocalCache('depenses', list);
-  return res;
+  return convertDepenseToView(res);
 };
 
 export const updateDepense = async (id, data) => {
+  const baseData = {
+    ...data,
+    montant: convertCurrency(data.montant, activeViewDevise, baseDevise)
+  };
+
   if (!isOnline()) {
     const list = getLocalCache('depenses');
     const idx = list.findIndex(d => d.id === id);
     if (idx !== -1) {
-      list[idx] = { ...list[idx], ...data };
+      list[idx] = { ...list[idx], ...baseData };
       setLocalCache('depenses', list);
     }
-    pushToSyncQueue({ method: 'PUT', url: `/api/depenses/${id}`, body: data });
-    return { id, ...data };
+    pushToSyncQueue({ method: 'PUT', url: `/api/depenses/${id}`, body: baseData });
+    return convertDepenseToView({ id, ...baseData });
   }
 
-  const res = await apiCall(`/api/depenses/${id}`, 'PUT', data);
+  const res = await apiCall(`/api/depenses/${id}`, 'PUT', baseData);
   const list = getLocalCache('depenses');
   const idx = list.findIndex(d => d.id === id);
   if (idx !== -1) {
     list[idx] = res;
     setLocalCache('depenses', list);
   }
-  return res;
+  return convertDepenseToView(res);
 };
 
 export const deleteDepense = async (id) => {
@@ -517,24 +619,32 @@ export const deleteDepense = async (id) => {
 
 // ---- EPARGNES ----
 export const getEpargnes = async () => {
+  let data;
   try {
     if (isOnline()) {
-      const data = await apiCall('/api/epargnes');
+      data = await apiCall('/api/epargnes');
       setLocalCache('epargnes', data);
-      return data;
+    } else {
+      data = getLocalCache('epargnes');
     }
   } catch (e) {
     console.log('Falling back to local cache for epargnes...');
+    data = getLocalCache('epargnes');
   }
-  return getLocalCache('epargnes');
+  return data.map(convertEpargneToView);
 };
 
 export const addEpargne = async (data) => {
+  const baseData = {
+    ...data,
+    montant: convertCurrency(data.montant, activeViewDevise, baseDevise)
+  };
+
   if (!isOnline()) {
     const tempId = generateLocalId();
     const newEpargne = {
       id: tempId,
-      ...data,
+      ...baseData,
       createdAt: new Date().toISOString(),
       creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
     };
@@ -542,37 +652,42 @@ export const addEpargne = async (data) => {
     list.unshift(newEpargne);
     setLocalCache('epargnes', list);
 
-    pushToSyncQueue({ method: 'POST', url: '/api/epargnes', body: data, tempId });
-    return newEpargne;
+    pushToSyncQueue({ method: 'POST', url: '/api/epargnes', body: baseData, tempId });
+    return convertEpargneToView(newEpargne);
   }
 
-  const res = await apiCall('/api/epargnes', 'POST', data);
+  const res = await apiCall('/api/epargnes', 'POST', baseData);
   const list = getLocalCache('epargnes');
   list.unshift(res);
   setLocalCache('epargnes', list);
-  return res;
+  return convertEpargneToView(res);
 };
 
 export const updateEpargne = async (id, data) => {
+  const baseData = {
+    ...data,
+    montant: convertCurrency(data.montant, activeViewDevise, baseDevise)
+  };
+
   if (!isOnline()) {
     const list = getLocalCache('epargnes');
     const idx = list.findIndex(e => e.id === id);
     if (idx !== -1) {
-      list[idx] = { ...list[idx], ...data };
+      list[idx] = { ...list[idx], ...baseData };
       setLocalCache('epargnes', list);
     }
-    pushToSyncQueue({ method: 'PUT', url: `/api/epargnes/${id}`, body: data });
-    return { id, ...data };
+    pushToSyncQueue({ method: 'PUT', url: `/api/epargnes/${id}`, body: baseData });
+    return convertEpargneToView({ id, ...baseData });
   }
 
-  const res = await apiCall(`/api/epargnes/${id}`, 'PUT', data);
+  const res = await apiCall(`/api/epargnes/${id}`, 'PUT', baseData);
   const list = getLocalCache('epargnes');
   const idx = list.findIndex(e => e.id === id);
   if (idx !== -1) {
     list[idx] = res;
     setLocalCache('epargnes', list);
   }
-  return res;
+  return convertEpargneToView(res);
 };
 
 export const deleteEpargne = async (id) => {
@@ -681,7 +796,17 @@ export const getStatsVoyage = async (voyageId) => {
 
 // Utils
 export const formatCurrency = (amount, devise = 'FCFA') => {
-  return new Intl.NumberFormat('fr-FR').format(amount || 0) + ' ' + devise;
+  let displayAmount = amount || 0;
+  let displayDevise = devise;
+
+  if (activeViewDevise && activeRates) {
+    if (devise === baseDevise) {
+      displayAmount = convertCurrency(amount, baseDevise, activeViewDevise);
+      displayDevise = activeViewDevise;
+    }
+  }
+
+  return new Intl.NumberFormat('fr-FR').format(displayAmount || 0) + ' ' + displayDevise;
 };
 
 export const formatDate = (dateStr) => {
@@ -691,10 +816,10 @@ export const formatDate = (dateStr) => {
 
 // Synchronous Cache Getters for Instant UI Rendering (SWR Pattern)
 export const getClientsCache = () => getLocalCache('clients');
-export const getFacturesCache = () => getLocalCache('factures');
+export const getFacturesCache = () => getLocalCache('factures').map(convertFactureToView);
 export const getVoyagesCache = () => getLocalCache('voyages');
-export const getDepensesCache = () => getLocalCache('depenses');
-export const getEpargnesCache = () => getLocalCache('epargnes');
+export const getDepensesCache = () => getLocalCache('depenses').map(convertDepenseToView);
+export const getEpargnesCache = () => getLocalCache('epargnes').map(convertEpargneToView);
 export const getParametresCache = () => {
   try {
     const data = localStorage.getItem('ef_cache_parametres');

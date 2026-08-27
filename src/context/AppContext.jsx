@@ -139,7 +139,28 @@ export const AppProvider = ({ children }) => {
 
   const isModuleActive = useCallback((key) => {
     if (!modules) return true;
-    return modules[key] !== false;
+
+    const globalConfig = modules.global || modules;
+    const boutiqueConfig = modules.boutiques || {};
+
+    // 1. Global disable check
+    if (globalConfig && globalConfig[key] === false) {
+      return false;
+    }
+
+    // 2. Boutique-specific disable check
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        const bId = u?.boutique_id;
+        if (bId && boutiqueConfig[bId] && boutiqueConfig[bId][key] === false) {
+          return false;
+        }
+      }
+    } catch (e) {}
+
+    return true;
   }, [modules]);
 
   const updateModules = useCallback(async (newModules) => {

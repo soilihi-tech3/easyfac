@@ -28,14 +28,14 @@ export default function ComingSoonModule({ moduleName = 'Cette fonctionnalité' 
         </h1>
 
         <p className="coming-soon-description">
-          Cette fonctionnalité a été suspendue ou mise en maintenance par la direction (Super Admin).
-          Nos équipes travaillent pour la rendre disponible très prochainement.
+          Cette fonctionnalité a été suspendue ou mise en maintenance par notre equipe technique.
+          Nous travaillons pour la rendre disponible très rapidement.
         </p>
 
         <div className="coming-soon-notice-box">
           <ShieldAlert size={18} className="notice-icon" />
           <span>
-            Merci de patienter. Pour toute urgence ou question d'accès, veuillez contacter votre administrateur principal.
+            Merci de patienter. Pour toute urgence ou question d'accès, veuillez contacter votre administrateur.
           </span>
         </div>
 

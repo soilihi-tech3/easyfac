@@ -170,12 +170,49 @@ export default function SuperAdminDashboard() {
 
   const handleRefresh = () => setRefreshTrigger(p => p + 1);
 
+  const [targetBoutiqueId, setTargetBoutiqueId] = useState('global');
+
   const handleToggleModule = async (key, nextState) => {
-    const updated = { ...appModules, [key]: nextState };
-    setAppModules(updated);
+    const currentGlobal = appModules.global || appModules;
+    const currentBoutiques = appModules.boutiques || {};
+
+    let updatedModules = {};
+
+    if (targetBoutiqueId === 'global') {
+      updatedModules = {
+        ...appModules,
+        global: {
+          ...currentGlobal,
+          [key]: nextState
+        },
+        boutiques: currentBoutiques
+      };
+    } else {
+      const bConfig = currentBoutiques[targetBoutiqueId] || {};
+      updatedModules = {
+        ...appModules,
+        global: currentGlobal,
+        boutiques: {
+          ...currentBoutiques,
+          [targetBoutiqueId]: {
+            ...bConfig,
+            [key]: nextState
+          }
+        }
+      };
+    }
+
+    setAppModules(updatedModules);
     try {
-      await updateAppModules(updated);
-      showMsg(nextState ? `Module "${key}" activé avec succès ✓` : `Module "${key}" désactivé (Bientôt disponible active)`);
+      await updateAppModules(updatedModules);
+      const targetName = targetBoutiqueId === 'global'
+        ? 'Toutes les boutiques (Global)'
+        : (boutiques.find(b => b.id.toString() === targetBoutiqueId.toString())?.nom || targetBoutiqueId);
+
+      showMsg(nextState 
+        ? `Module "${key}" activé pour ${targetName} ✓`
+        : `Module "${key}" désactivé pour ${targetName} ("Bientôt disponible" actif)`
+      );
     } catch (err) {
       showMsg(err.message, true);
     }
@@ -817,13 +854,67 @@ export default function SuperAdminDashboard() {
             {/* ======= MODULES FEATURE FLAGS TAB ======= */}
             {activeTab === 'modules' && (
               <div className="sa-tab-pane fade-in sa-dedicated-view">
-                <div style={{ marginBottom: 24, padding: '20px', background: 'var(--sa-card-bg)', borderRadius: '18px', border: '1px solid var(--sa-border)' }}>
+                <div style={{ marginBottom: 20, padding: '20px', background: 'var(--sa-card-bg)', borderRadius: '18px', border: '1px solid var(--sa-border)' }}>
                   <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--sa-text-main)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <ToggleRight size={26} style={{ color: '#6366f1' }} /> Centre de Contrôle des Fonctionnalités & Modules
                   </h3>
                   <p style={{ fontSize: 13.5, color: 'var(--sa-text-muted)', lineHeight: 1.5, margin: 0 }}>
-                    Activez ou désactivez en temps réel les fonctionnalités de l'application. Lorsqu'un module est désactivé, tout utilisateur ou employé tentant d'y accéder verra l'écran <strong>"Bientôt disponible, merci de patienter"</strong>.
+                    Activez ou désactivez en temps réel les fonctionnalités. Vous pouvez appliquer vos modifications <strong>à l'ensemble des boutiques</strong> ou sélectionner <strong>une boutique spécifique</strong> ci-dessous.
                   </p>
+                </div>
+
+                {/* 🎯 BOUTIQUE TARGET SELECTOR BAR */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justify: 'space-between',
+                  gap: 16,
+                  marginBottom: 24,
+                  padding: '16px 20px',
+                  background: 'var(--sa-card-bg)',
+                  borderRadius: '18px',
+                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  flexWrap: 'wrap',
+                  boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Building2 size={22} style={{ color: '#6366f1', flexShrink: 0 }} />
+                    <div>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--sa-text-main)', display: 'block' }}>
+                        Cible d'activation / désactivation :
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--sa-text-muted)', fontWeight: 500 }}>
+                        {targetBoutiqueId === 'global'
+                          ? '🌐 Réglementation Globale (S\'applique par défaut à toutes les boutiques)'
+                          : `🏢 Réglementation Personnalisée pour la boutique : ${boutiques.find(b => b.id.toString() === targetBoutiqueId.toString())?.nom || targetBoutiqueId}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <select
+                    value={targetBoutiqueId}
+                    onChange={e => setTargetBoutiqueId(e.target.value)}
+                    style={{
+                      background: 'rgba(15, 23, 42, 0.85)',
+                      border: '1.5px solid #6366f1',
+                      color: '#ffffff',
+                      padding: '10px 16px',
+                      borderRadius: '12px',
+                      fontWeight: 800,
+                      fontSize: '13.5px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      minWidth: '280px',
+                      boxShadow: '0 2px 10px rgba(99, 102, 241, 0.2)'
+                    }}
+                  >
+                    <option value="global">🌐 Toutes les boutiques (Global)</option>
+                    {boutiques.map(b => (
+                      <option key={b.id} value={b.id}>
+                        🏢 {b.nom} ({b.id})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div style={{
@@ -832,7 +923,20 @@ export default function SuperAdminDashboard() {
                   gap: 20
                 }}>
                   {MODULES_LIST_CONFIG.map(mod => {
-                    const isActive = appModules[mod.key] !== false;
+                    const globalConfig = appModules.global || appModules;
+                    const boutiqueConfig = appModules.boutiques || {};
+
+                    const isGlobalDisabled = globalConfig[mod.key] === false;
+                    const isBoutiqueDisabled = targetBoutiqueId !== 'global' && boutiqueConfig[targetBoutiqueId]?.[mod.key] === false;
+
+                    const isActive = targetBoutiqueId === 'global'
+                      ? !isGlobalDisabled
+                      : (!isGlobalDisabled && !isBoutiqueDisabled);
+
+                    const toggleCurrentState = targetBoutiqueId === 'global'
+                      ? !isGlobalDisabled
+                      : !isBoutiqueDisabled;
+
                     const IconComponent = mod.icon;
 
                     return (
@@ -841,12 +945,14 @@ export default function SuperAdminDashboard() {
                         style={{
                           padding: '22px',
                           background: 'var(--sa-card-bg)',
-                          border: isActive ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(239, 68, 68, 0.35)',
+                          border: isGlobalDisabled
+                            ? '1px solid rgba(239, 68, 68, 0.4)'
+                            : (isBoutiqueDisabled ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(34, 197, 94, 0.35)'),
                           borderRadius: '20px',
                           boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
                           display: 'flex',
                           flexDirection: 'column',
-                          justifyContent: 'space-between',
+                          justify: 'space-between',
                           gap: 16,
                           transition: 'all 0.25s ease'
                         }}
@@ -882,12 +988,20 @@ export default function SuperAdminDashboard() {
                             fontWeight: 800,
                             padding: '4px 10px',
                             borderRadius: 20,
-                            background: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: isActive ? '#22c55e' : '#ef4444',
-                            border: isActive ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                            background: isGlobalDisabled
+                              ? 'rgba(239, 68, 68, 0.15)'
+                              : (isBoutiqueDisabled ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)'),
+                            color: isGlobalDisabled
+                              ? '#ef4444'
+                              : (isBoutiqueDisabled ? '#f59e0b' : '#22c55e'),
+                            border: isGlobalDisabled
+                              ? '1px solid rgba(239, 68, 68, 0.3)'
+                              : (isBoutiqueDisabled ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(34, 197, 94, 0.3)'),
                             whiteSpace: 'nowrap'
                           }}>
-                            {isActive ? '● Activé' : '🔴 Désactivé'}
+                            {isGlobalDisabled
+                              ? '🔴 Désactivé Globalement'
+                              : (isBoutiqueDisabled ? '🟠 Désactivé (Boutique)' : '● Activé')}
                           </span>
                         </div>
 
@@ -898,25 +1012,32 @@ export default function SuperAdminDashboard() {
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          justify: 'space-between',
+                          justifyContent: 'space-between',
                           paddingTop: 14,
                           borderTop: '1px dashed var(--sa-border)',
                           marginTop: 4
                         }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#22c55e' : '#ef4444' }}>
-                            {isActive ? 'Accès autorisé aux boutiques' : 'Message "Bientôt disponible" actif'}
-                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#22c55e' : (isGlobalDisabled ? '#ef4444' : '#f59e0b') }}>
+                              {isActive ? 'Accès autorisé' : 'Message "Bientôt disponible"'}
+                            </span>
+                            {targetBoutiqueId !== 'global' && isGlobalDisabled && (
+                              <span style={{ fontSize: 10, color: '#ef4444', fontStyle: 'italic', fontWeight: 600 }}>
+                                ⚠️ Désactivé globalement
+                              </span>
+                            )}
+                          </div>
 
                           {/* iOS-Style Toggle Switch */}
                           <button
                             type="button"
-                            onClick={() => handleToggleModule(mod.key, !isActive)}
-                            title={isActive ? 'Cliquer pour désactiver' : 'Cliquer pour réactiver'}
+                            onClick={() => handleToggleModule(mod.key, !toggleCurrentState)}
+                            title={toggleCurrentState ? 'Cliquer pour désactiver' : 'Cliquer pour réactiver'}
                             style={{
                               width: 54,
                               height: 30,
                               borderRadius: 20,
-                              background: isActive ? '#22c55e' : '#374151',
+                              background: toggleCurrentState ? '#22c55e' : '#374151',
                               border: 'none',
                               position: 'relative',
                               cursor: 'pointer',
@@ -932,7 +1053,7 @@ export default function SuperAdminDashboard() {
                               background: '#ffffff',
                               boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
                               transition: 'transform 0.25s',
-                              transform: isActive ? 'translateX(24px)' : 'translateX(0)'
+                              transform: toggleCurrentState ? 'translateX(24px)' : 'translateX(0)'
                             }} />
                           </button>
                         </div>

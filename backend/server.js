@@ -513,7 +513,7 @@ app.put('/api/parametres', async (req, res) => {
 });
 
 // --- MODULES FEATURE FLAGS ---
-const DEFAULT_MODULES_CONFIG = {
+const DEFAULT_GLOBAL_MODULES = {
   factures: true,
   clients: true,
   voyages: true,
@@ -534,12 +534,38 @@ app.get('/api/modules', async (req, res) => {
     if (rows.length > 0 && rows[0].config) {
       const cfg = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
       if (cfg.modules) {
-        return res.json({ modules: { ...DEFAULT_MODULES_CONFIG, ...cfg.modules } });
+        let globalModules = DEFAULT_GLOBAL_MODULES;
+        let boutiqueModules = {};
+
+        if (cfg.modules.global) {
+          globalModules = { ...DEFAULT_GLOBAL_MODULES, ...cfg.modules.global };
+          boutiqueModules = cfg.modules.boutiques || {};
+        } else {
+          // Legacy flat format migration
+          globalModules = { ...DEFAULT_GLOBAL_MODULES, ...cfg.modules };
+        }
+
+        return res.json({
+          modules: {
+            global: globalModules,
+            boutiques: boutiqueModules
+          }
+        });
       }
     }
-    res.json({ modules: DEFAULT_MODULES_CONFIG });
+    res.json({
+      modules: {
+        global: DEFAULT_GLOBAL_MODULES,
+        boutiques: {}
+      }
+    });
   } catch (error) {
-    res.json({ modules: DEFAULT_MODULES_CONFIG });
+    res.json({
+      modules: {
+        global: DEFAULT_GLOBAL_MODULES,
+        boutiques: {}
+      }
+    });
   }
 });
 

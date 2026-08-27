@@ -191,3 +191,4 @@ Le projet contient un fichier Dockerfile prêt pour un déploiement cloud (Rende
 ## 📄 Licence
 
 Ce projet est sous licence **MIT** — Libre d'utilisation et de modification pour vos besoins commerciaux.
+

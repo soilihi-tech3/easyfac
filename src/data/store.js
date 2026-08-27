@@ -995,9 +995,12 @@ export const getAppModules = async () => {
     if (cached) return JSON.parse(cached);
   } catch (e) {}
   return {
-    factures: true, clients: true, voyages: true, depenses: true,
-    remboursements: true, communiques: true, flyer: true, epargne: true,
-    statistiques: true, parametres: true, employes: true, devise: true
+    global: {
+      factures: true, clients: true, voyages: true, depenses: true,
+      remboursements: true, communiques: true, flyer: true, epargne: true,
+      statistiques: true, parametres: true, employes: true, devise: true
+    },
+    boutiques: {}
   };
 };
 

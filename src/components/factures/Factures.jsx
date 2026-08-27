@@ -189,9 +189,29 @@ export default function Factures() {
 
   useEffect(() => { load(); }, [load, refresh]);
 
+  const isFacturePaid = (f) => {
+    if (!f) return false;
+    return f.statut === 'paye' || f.statut === 'Payée' || (Number(f.montantPaye || 0) >= Number(f.montantTotal || 0) && Number(f.montantTotal || 0) > 0);
+  };
+
   const openAdd  = () => { setEditFacture(null); setShowModal(true); };
-  const openEdit = (f) => { setEditFacture(f); setShowModal(true); };
+  const openEdit = (f) => {
+    if (isFacturePaid(f)) {
+      toast("Une facture déjà payée ne peut pas être modifiée.", "error");
+      return;
+    }
+    setEditFacture(f);
+    setShowModal(true);
+  };
   const openView = (f) => setViewFacture(f);
+
+  const triggerDelete = (f) => {
+    if (isFacturePaid(f)) {
+      toast("Une facture déjà payée ne peut pas être supprimée.", "error");
+      return;
+    }
+    setConfirmDelete(f);
+  };
 
   const handleSave = async (data) => {
     try {
@@ -585,11 +605,19 @@ export default function Factures() {
                           </>
                         )}
                         <button className="btn-icon" onClick={() => openView(f)} title="Aperçu"><Eye size={14} /></button>
-                        {(isAdmin || permissions.modifierFacture) && (
-                          <button className="btn-icon" onClick={() => openEdit(f)} title="Modifier"><Edit2 size={14} /></button>
+                        {(isAdmin || permissions?.modifierFacture) && (
+                          isFacturePaid(f) ? (
+                            <button className="btn-icon" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : modification impossible"><Edit2 size={14} /></button>
+                          ) : (
+                            <button className="btn-icon" onClick={() => openEdit(f)} title="Modifier"><Edit2 size={14} /></button>
+                          )
                         )}
-                        {(isAdmin || permissions.supprimerFacture) && (
-                          <button className="btn-icon danger" onClick={() => setConfirmDelete(f)} title="Supprimer"><Trash2 size={14} /></button>
+                        {(isAdmin || permissions?.supprimerFacture) && (
+                          isFacturePaid(f) ? (
+                            <button className="btn-icon danger" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : suppression impossible"><Trash2 size={14} /></button>
+                          ) : (
+                            <button className="btn-icon danger" onClick={() => triggerDelete(f)} title="Supprimer"><Trash2 size={14} /></button>
+                          )
                         )}
                       </div>
                     </td>

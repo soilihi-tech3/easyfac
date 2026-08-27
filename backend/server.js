@@ -512,6 +512,72 @@ app.put('/api/parametres', async (req, res) => {
   }
 });
 
+// --- MODULES FEATURE FLAGS ---
+const DEFAULT_MODULES_CONFIG = {
+  factures: true,
+  clients: true,
+  voyages: true,
+  depenses: true,
+  remboursements: true,
+  communiques: true,
+  flyer: true,
+  epargne: true,
+  statistiques: true,
+  parametres: true,
+  employes: true,
+  devise: true
+};
+
+app.get('/api/modules', async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT config FROM settings WHERE boutique_id = 'super_admin'");
+    if (rows.length > 0 && rows[0].config) {
+      const cfg = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
+      if (cfg.modules) {
+        return res.json({ modules: { ...DEFAULT_MODULES_CONFIG, ...cfg.modules } });
+      }
+    }
+    res.json({ modules: DEFAULT_MODULES_CONFIG });
+  } catch (error) {
+    res.json({ modules: DEFAULT_MODULES_CONFIG });
+  }
+});
+
+app.put('/api/modules', async (req, res) => {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Seul le Super Admin peut modifier les modules' });
+  }
+  try {
+    const { modules } = req.body;
+    const [existing] = await pool.query("SELECT id, config FROM settings WHERE boutique_id = 'super_admin'");
+    
+    let currentConfig = {};
+    if (existing.length > 0 && existing[0].config) {
+      currentConfig = typeof existing[0].config === 'string' ? JSON.parse(existing[0].config) : existing[0].config;
+    }
+    
+    const updatedConfig = { ...currentConfig, modules };
+    
+    if (existing.length > 0) {
+      await pool.query(
+        "UPDATE settings SET config = ? WHERE boutique_id = 'super_admin'",
+        [JSON.stringify(updatedConfig)]
+      );
+    } else {
+      const [maxIdRow] = await pool.query('SELECT COALESCE(MAX(id), 0) + 1 AS nextId FROM settings');
+      const nextId = maxIdRow[0].nextId;
+      await pool.query(
+        "INSERT INTO settings (id, boutique_id, entreprise, config) VALUES (?, 'super_admin', ?, ?)",
+        [nextId, JSON.stringify({ nom: 'Super Admin System' }), JSON.stringify(updatedConfig)]
+      );
+    }
+    
+    res.json({ success: true, modules });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- FACTURES (Complex: nested articles) ---
 // --- CRON JOBS ---
 const cron = require('node-cron');
@@ -807,6 +873,17 @@ app.put('/api/factures/:id', async (req, res) => {
     if (req.user.role === 'employee' && req.user.voyageId) voyageId = req.user.voyageId;
     const factureId = req.params.id;
 
+    // Verify if existing invoice is already paid
+    const [existingFactures] = await connection.query('SELECT statut, montantTotal, montantPaye FROM factures WHERE id = ?', [factureId]);
+    if (existingFactures.length > 0) {
+      const ef = existingFactures[0];
+      const wasPaid = ef.statut === 'paye' || ef.statut === 'Payée' || (Number(ef.montantPaye) >= Number(ef.montantTotal) && Number(ef.montantTotal) > 0);
+      if (wasPaid) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Une facture déjà payée ne peut pas être modifiée." });
+      }
+    }
+
     if (dateLimite) {
       try {
         dateLimite = new Date(dateLimite).toISOString().split('T')[0];
@@ -847,6 +924,17 @@ app.delete('/api/factures/:id', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+
+    // Verify if existing invoice is already paid
+    const [existingFactures] = await connection.query('SELECT statut, montantTotal, montantPaye FROM factures WHERE id = ?', [req.params.id]);
+    if (existingFactures.length > 0) {
+      const ef = existingFactures[0];
+      const wasPaid = ef.statut === 'paye' || ef.statut === 'Payée' || (Number(ef.montantPaye) >= Number(ef.montantTotal) && Number(ef.montantTotal) > 0);
+      if (wasPaid) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Une facture déjà payée ne peut pas être supprimée." });
+      }
+    }
     
     // 1. Delete associated articles first to prevent MySQL foreign key constraint failure
     await connection.query('DELETE FROM facture_articles WHERE factureId = ?', [req.params.id]);
@@ -925,6 +1013,103 @@ app.put('/api/epargnes/:id', async (req, res) => {
 app.delete('/api/epargnes/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM epargnes WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- REMBOURSEMENTS ---
+app.get('/api/remboursements', async (req, res) => {
+  try {
+    let query = 'SELECT * FROM remboursements WHERE boutique_id = ? ORDER BY createdAt DESC';
+    let params = [req.user.boutique_id];
+    if (req.user.role === 'employee' && req.user.voyageId) {
+      query = 'SELECT * FROM remboursements WHERE boutique_id = ? AND voyageId = ? ORDER BY createdAt DESC';
+      params = [req.user.boutique_id, req.user.voyageId];
+    }
+    const [rows] = await pool.query(query, params);
+    
+    // Conjoin the user details
+    const [users] = await pool.query('SELECT id, nom, prenom, role FROM users WHERE boutique_id = ?', [req.user.boutique_id]);
+    const userMap = users.reduce((m, u) => { m[u.id] = u; return m; }, {});
+    const enriched = rows.map(r => ({
+      ...r,
+      creePar: r.userId ? userMap[r.userId] : null
+    }));
+    
+    res.json(enriched);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/remboursements', async (req, res) => {
+  try {
+    const {
+      factureId, numeroFacture, clientNom, clientPrenom, clientTelephone,
+      voyageId, voyageNom, montantTotalFacture, montantPayeFacture,
+      montantDuRemboursement, montantRembourse, resteARembourser, statut, modePaiement, motif
+    } = req.body;
+
+    const id = uuidv4();
+    await pool.query(
+      `INSERT INTO remboursements (
+        id, factureId, numeroFacture, clientNom, clientPrenom, clientTelephone,
+        voyageId, voyageNom, montantTotalFacture, montantPayeFacture,
+        montantDuRemboursement, montantRembourse, resteARembourser, statut, modePaiement, motif, userId, boutique_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id, factureId || null, numeroFacture || '', clientNom || '', clientPrenom || '', clientTelephone || '',
+        voyageId || null, voyageNom || '', parseFloat(montantTotalFacture) || 0, parseFloat(montantPayeFacture) || 0,
+        parseFloat(montantDuRemboursement) || 0, parseFloat(montantRembourse) || 0, parseFloat(resteARembourser) || 0,
+        statut || 'partiel', modePaiement || 'cash', motif || '', req.user.id, req.user.boutique_id
+      ]
+    );
+
+    const [rows] = await pool.query('SELECT * FROM remboursements WHERE id = ?', [id]);
+    const [users] = await pool.query('SELECT id, nom, prenom, role FROM users WHERE id = ?', [req.user.id]);
+    const result = {
+      ...rows[0],
+      creePar: users.length > 0 ? users[0] : null
+    };
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/remboursements/:id', async (req, res) => {
+  try {
+    const {
+      factureId, numeroFacture, clientNom, clientPrenom, clientTelephone,
+      voyageId, voyageNom, montantTotalFacture, montantPayeFacture,
+      montantDuRemboursement, montantRembourse, resteARembourser, statut, modePaiement, motif
+    } = req.body;
+
+    await pool.query(
+      `UPDATE remboursements SET
+        factureId = ?, numeroFacture = ?, clientNom = ?, clientPrenom = ?, clientTelephone = ?,
+        voyageId = ?, voyageNom = ?, montantTotalFacture = ?, montantPayeFacture = ?,
+        montantDuRemboursement = ?, montantRembourse = ?, resteARembourser = ?, statut = ?, modePaiement = ?, motif = ?
+      WHERE id = ? AND boutique_id = ?`,
+      [
+        factureId || null, numeroFacture || '', clientNom || '', clientPrenom || '', clientTelephone || '',
+        voyageId || null, voyageNom || '', parseFloat(montantTotalFacture) || 0, parseFloat(montantPayeFacture) || 0,
+        parseFloat(montantDuRemboursement) || 0, parseFloat(montantRembourse) || 0, parseFloat(resteARembourser) || 0,
+        statut || 'partiel', modePaiement || 'cash', motif || '', req.params.id, req.user.boutique_id
+      ]
+    );
+
+    res.json({ id: req.params.id, ...req.body });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/remboursements/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM remboursements WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1307,6 +1492,35 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
         console.error('Error creating table "epargnes":', e.message);
       }
 
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS remboursements (
+            id VARCHAR(255) PRIMARY KEY,
+            factureId VARCHAR(255) DEFAULT NULL,
+            numeroFacture VARCHAR(255) DEFAULT NULL,
+            clientNom VARCHAR(255) DEFAULT NULL,
+            clientPrenom VARCHAR(255) DEFAULT NULL,
+            clientTelephone VARCHAR(255) DEFAULT NULL,
+            voyageId VARCHAR(255) DEFAULT NULL,
+            voyageNom VARCHAR(255) DEFAULT NULL,
+            montantTotalFacture DECIMAL(15, 2) DEFAULT 0,
+            montantPayeFacture DECIMAL(15, 2) DEFAULT 0,
+            montantDuRemboursement DECIMAL(15, 2) NOT NULL DEFAULT 0,
+            montantRembourse DECIMAL(15, 2) NOT NULL DEFAULT 0,
+            resteARembourser DECIMAL(15, 2) NOT NULL DEFAULT 0,
+            statut VARCHAR(50) DEFAULT 'partiel',
+            modePaiement VARCHAR(50) DEFAULT 'cash',
+            motif TEXT DEFAULT NULL,
+            userId VARCHAR(255) DEFAULT NULL,
+            boutique_id VARCHAR(255) DEFAULT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        console.log('Table "remboursements" created or verified.');
+      } catch (e) {
+        console.error('Error creating table "remboursements":', e.message);
+      }
+
       // Safely add columns if they do not exist
       try {
         await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
@@ -1319,6 +1533,10 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
       try {
         await pool.query('ALTER TABLE factures ADD COLUMN rappelAutomatiqueSent TINYINT DEFAULT 0');
         console.log('Column "rappelAutomatiqueSent" added to "factures" table.');
+      } catch (e) {}
+      try {
+        await pool.query('ALTER TABLE remboursements ADD COLUMN montantDuRemboursement DECIMAL(15,2) DEFAULT 0');
+        console.log('Column "montantDuRemboursement" added to "remboursements" table.');
       } catch (e) {}
 
       // --- SAAS SCHEMAS & MIGRATIONS ---

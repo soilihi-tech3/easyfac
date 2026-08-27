@@ -428,9 +428,20 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                     </div>
                   </div>
                 ))}
-                <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={addArticle}>
-                  <Plus size={13} /> Ajouter un article
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
+                  <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={addArticle}>
+                    <Plus size={13} /> Ajouter un article
+                  </button>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+                    background: 'var(--brand-muted)', borderRadius: 12, border: '1px solid rgba(99,102,241,0.2)'
+                  }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Somme totale des articles :</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--brand)', fontFamily: 'var(--font-display)' }}>
+                      {formatCurrency(form.articles.reduce((s, a) => s + (parseFloat(a.total) || 0), 0), devise)}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Transport / Fret */}

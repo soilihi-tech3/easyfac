@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye, Megaphone, FileImage, RotateCcw } from 'lucide-react';
 import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -27,6 +27,12 @@ const defaultPermissions = {
   creerDepense: false,
   modifierDepense: false,
   supprimerDepense: false,
+
+  voirCommuniques: false,
+  voirFlyer: false,
+
+  voirRemboursements: false,
+  creerRemboursement: false,
 };
 
 export default function Users() {
@@ -101,6 +107,10 @@ export default function Users() {
         creerDepense: true,
         modifierDepense: true,
         supprimerDepense: true,
+        voirCommuniques: true,
+        voirFlyer: true,
+        voirRemboursements: true,
+        creerRemboursement: true,
       } : form.permissions
     };
 
@@ -434,6 +444,9 @@ export default function Users() {
                                 { key: 'creerDepense', label: 'Créer Dép.' },
                                 { key: 'modifierDepense', label: 'Mod. Dép.' },
                                 { key: 'supprimerDepense', label: 'Sup. Dép.' },
+
+                                { key: 'voirCommuniques', label: 'Communiqués' },
+                                { key: 'voirFlyer', label: 'Flyer' },
                               ].filter(p => !!perms[p.key]);
 
                               return activePerms.length > 0 ? activePerms.map(p => (
@@ -691,6 +704,37 @@ export default function Users() {
                           <span style={form.permissions?.[p.key] ? { color: 'var(--text-primary)' } : {}}>{p.label}</span>
                         </label>
                       ))}
+                    </div>
+
+                    {/* CATEGORY 5: COMMUNICATION & REMBOURSEMENTS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 16, background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border-subtle)', gridColumn: 'span 2' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--warning)', fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+                        <RotateCcw size={15} /> Communication & Remboursements
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        {[
+                          { key: 'voirCommuniques', label: "Accès aux Communiqués WhatsApp" },
+                          { key: 'voirFlyer', label: "Accès au Générateur de Flyer" },
+                          { key: 'voirRemboursements', label: "Voir les Remboursements" },
+                          { key: 'creerRemboursement', label: "Effectuer un Remboursement" },
+                        ].map(p => (
+                          <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontSize: 12.5, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            <input
+                              type="checkbox"
+                              checked={!!form.permissions?.[p.key]}
+                              onChange={e => {
+                                const checked = e.target.checked;
+                                setForm(f => ({
+                                  ...f,
+                                  permissions: { ...f.permissions, [p.key]: checked }
+                                }));
+                              }}
+                              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--warning)' }}
+                            />
+                            <span style={form.permissions?.[p.key] ? { color: 'var(--text-primary)' } : {}}>{p.label}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
 
                   </div>

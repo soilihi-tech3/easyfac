@@ -6,7 +6,7 @@ import {
   DollarSign, Activity, AlertTriangle, LayoutDashboard, Phone, 
   MapPin, Lock, MessageCircle, CreditCard, Receipt, ChevronDown,
   Wallet, ArrowUpRight, ArrowDownRight, Users, Calendar,
-  Send, Eye, EyeOff, Package, Sun, Moon
+  Send, Eye, EyeOff, Package, Sun, Moon, ToggleRight, Sparkles, FileText, Settings, Menu
 } from 'lucide-react';
 import { 
   getSuperAdminBoutiques, createSuperAdminBoutique, 
@@ -15,7 +15,7 @@ import {
   getSuperAdminPayments, createSuperAdminPayment, deleteSuperAdminPayment,
   sendBoutiquePaymentReminder,
   getSuperAdminDepenses, createSuperAdminDepense, deleteSuperAdminDepense,
-  changeBoutiquePassword,
+  changeBoutiquePassword, getAppModules, updateAppModules,
   formatCurrency, formatDate 
 } from '../../data/store';
 import { 
@@ -23,9 +23,25 @@ import {
 } from 'recharts';
 import './SuperAdminDashboard.css';
 
+const MODULES_LIST_CONFIG = [
+  { key: 'factures', label: 'Factures', category: 'Gestion', icon: FileText, desc: 'Gestion des factures clients, impayés, reçus & devis' },
+  { key: 'clients', label: 'Clients', category: 'Gestion', icon: Users, desc: 'Répertoire des expediteurs & destinataires de fret' },
+  { key: 'voyages', label: 'Voyages', category: 'Gestion', icon: Package, desc: 'Gestion des conteneurs, voyages maritime & aérien' },
+  { key: 'depenses', label: 'Dépenses', category: 'Gestion', icon: Receipt, desc: 'Suivi des frais d’exploitation et charges des boutiques' },
+  { key: 'remboursements', label: 'Remboursements', category: 'Gestion', icon: RefreshCw, desc: 'Gestion des avoirs, reliquats & indemnités litiges' },
+  { key: 'communiques', label: 'Communiqués', category: 'Communication', icon: Send, desc: 'Diffusion d’annonces WhatsApp & alertes automatisées' },
+  { key: 'flyer', label: 'Créateur de Flyer', category: 'Marketing', icon: Sparkles, desc: 'Générateur de visuels publicitaires & promotions' },
+  { key: 'epargne', label: 'Épargne', category: 'Finances', icon: PiggyBank, desc: 'Gestion des fonds de réserve et trésorerie' },
+  { key: 'statistiques', label: 'Statistiques & Rapport', category: 'Analyse', icon: BarChart3, desc: 'Tableaux de bord analytiques et bilans financiers' },
+  { key: 'parametres', label: 'Paramètres', category: 'Système', icon: Settings, desc: 'Configuration de l’entreprise, tarifs & modèles de facture' },
+  { key: 'employes', label: 'Gestion des Employés', category: 'Système', icon: Lock, desc: 'Gestion des accès employés & permissions' },
+  { key: 'devise', label: 'Sélecteur de Devise', category: 'TopBar', icon: CreditCard, desc: 'Menu de conversion des monnaies (FCFA, EUR, USD, KMF)' },
+];
+
 const TABS = [
   { key: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
   { key: 'boutiques', label: 'Boutiques', icon: Building2 },
+  { key: 'modules', label: 'Activation des Fonctionnalités', icon: ToggleRight },
   { key: 'payments', label: 'Paiements CA', icon: CreditCard },
   { key: 'depenses', label: 'Mes Dépenses', icon: Receipt },
   { key: 'epargnes', label: 'Épargne Globale', icon: PiggyBank },
@@ -37,6 +53,7 @@ export default function SuperAdminDashboard() {
   
   // Data States
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLightMode, setIsLightMode] = useState(false);
@@ -123,21 +140,25 @@ export default function SuperAdminDashboard() {
     setTimeout(() => { setActionError(''); setActionSuccess(''); }, 4000);
   };
 
+  const [appModules, setAppModules] = useState({});
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [boutiquesData, statsData, epargnesData, paymentsData, depensesData] = await Promise.all([
+      const [boutiquesData, statsData, epargnesData, paymentsData, depensesData, modulesData] = await Promise.all([
         getSuperAdminBoutiques(),
         getSuperAdminStats(),
         getSuperAdminEpargnes(),
         getSuperAdminPayments(),
-        getSuperAdminDepenses()
+        getSuperAdminDepenses(),
+        getAppModules()
       ]);
       setBoutiques(Array.isArray(boutiquesData) ? boutiquesData : []);
       setStats(statsData);
       setEpargnes(Array.isArray(epargnesData) ? epargnesData : []);
       setPayments(Array.isArray(paymentsData) ? paymentsData : []);
       setDepenses(Array.isArray(depensesData) ? depensesData : []);
+      setAppModules(modulesData || {});
     } catch (err) {
       console.error('Error fetching Super Admin data:', err);
     } finally {
@@ -148,6 +169,17 @@ export default function SuperAdminDashboard() {
   useEffect(() => { fetchData(); }, [fetchData, refreshTrigger]);
 
   const handleRefresh = () => setRefreshTrigger(p => p + 1);
+
+  const handleToggleModule = async (key, nextState) => {
+    const updated = { ...appModules, [key]: nextState };
+    setAppModules(updated);
+    try {
+      await updateAppModules(updated);
+      showMsg(nextState ? `Module "${key}" activé avec succès ✓` : `Module "${key}" désactivé (Bientôt disponible active)`);
+    } catch (err) {
+      showMsg(err.message, true);
+    }
+  };
 
   const handleToggleStatus = async (boutique) => {
     try {
@@ -354,8 +386,13 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className={`sa-layout-wrapper ${isLightMode ? 'sa-light-mode' : ''}`}>
+      {/* Mobile Drawer Overlay */}
+      {mobileNavOpen && (
+        <div className="sa-mobile-overlay" onClick={() => setMobileNavOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="sa-sidebar">
+      <aside className={`sa-sidebar ${mobileNavOpen ? 'mobile-open' : ''}`}>
         <div className="sa-sidebar-header">
           <div className="sa-logo-ring">
             <img src="/logo.jpg" alt="EasyFac" className="sa-brand-logo-img" />
@@ -364,6 +401,13 @@ export default function SuperAdminDashboard() {
             <h1 className="sa-sidebar-title">EasyFac</h1>
             <span className="sa-sidebar-subtitle">Super Admin</span>
           </div>
+          <button 
+            className="sa-mobile-close-btn" 
+            onClick={() => setMobileNavOpen(false)}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--sa-text-muted)', cursor: 'pointer' }}
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="sa-nav-menu">
@@ -373,7 +417,10 @@ export default function SuperAdminDashboard() {
               <button 
                 key={tab.key}
                 className={`sa-nav-item ${activeTab === tab.key ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  setActiveTab(tab.key);
+                  setMobileNavOpen(false);
+                }}
               >
                 <Icon size={20} />
                 <span>{tab.label}</span>
@@ -412,11 +459,16 @@ export default function SuperAdminDashboard() {
         )}
 
         <header className="sa-main-header">
-          <div className="sa-header-titles">
-            <h2 className="sa-page-title">
-              {TABS.find(t => t.key === activeTab)?.label || ''}
-            </h2>
-            <p className="sa-page-subtitle">Portail d'administration globale multi-tenant</p>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button className="sa-mobile-toggle-btn" onClick={() => setMobileNavOpen(o => !o)} title="Ouvrir le menu">
+              {mobileNavOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+            <div className="sa-header-titles">
+              <h2 className="sa-page-title">
+                {TABS.find(t => t.key === activeTab)?.label || ''}
+              </h2>
+              <p className="sa-page-subtitle">Portail d'administration globale multi-tenant</p>
+            </div>
           </div>
           <div className="sa-header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button onClick={toggleTheme} className="sa-refresh-btn" title="Basculer le thème" disabled={loading}>
@@ -758,6 +810,135 @@ export default function SuperAdminDashboard() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ======= MODULES FEATURE FLAGS TAB ======= */}
+            {activeTab === 'modules' && (
+              <div className="sa-tab-pane fade-in sa-dedicated-view">
+                <div style={{ marginBottom: 24, padding: '20px', background: 'var(--sa-card-bg)', borderRadius: '18px', border: '1px solid var(--sa-border)' }}>
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--sa-text-main)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <ToggleRight size={26} style={{ color: '#6366f1' }} /> Centre de Contrôle des Fonctionnalités & Modules
+                  </h3>
+                  <p style={{ fontSize: 13.5, color: 'var(--sa-text-muted)', lineHeight: 1.5, margin: 0 }}>
+                    Activez ou désactivez en temps réel les fonctionnalités de l'application. Lorsqu'un module est désactivé, tout utilisateur ou employé tentant d'y accéder verra l'écran <strong>"Bientôt disponible, merci de patienter"</strong>.
+                  </p>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: 20
+                }}>
+                  {MODULES_LIST_CONFIG.map(mod => {
+                    const isActive = appModules[mod.key] !== false;
+                    const IconComponent = mod.icon;
+
+                    return (
+                      <div
+                        key={mod.key}
+                        style={{
+                          padding: '22px',
+                          background: 'var(--sa-card-bg)',
+                          border: isActive ? '1px solid rgba(34, 197, 94, 0.35)' : '1px solid rgba(239, 68, 68, 0.35)',
+                          borderRadius: '20px',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          gap: 16,
+                          transition: 'all 0.25s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{
+                              width: 46,
+                              height: 46,
+                              borderRadius: 14,
+                              background: isActive ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                              color: isActive ? '#22c55e' : '#ef4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <IconComponent size={22} />
+                            </div>
+                            <div>
+                              <h4 style={{ fontSize: 16, fontWeight: 800, color: 'var(--sa-text-main)', margin: 0 }}>
+                                {mod.label}
+                              </h4>
+                              <span style={{ fontSize: 11, color: 'var(--sa-text-muted)', fontWeight: 600 }}>
+                                Catégorie: {mod.category}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Status Badge */}
+                          <span style={{
+                            fontSize: 10.5,
+                            fontWeight: 800,
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            background: isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: isActive ? '#22c55e' : '#ef4444',
+                            border: isActive ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {isActive ? '● Activé' : '🔴 Désactivé'}
+                          </span>
+                        </div>
+
+                        <p style={{ fontSize: 12.5, color: 'var(--sa-text-secondary)', margin: 0, lineHeight: 1.45 }}>
+                          {mod.desc}
+                        </p>
+
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justify: 'space-between',
+                          paddingTop: 14,
+                          borderTop: '1px dashed var(--sa-border)',
+                          marginTop: 4
+                        }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: isActive ? '#22c55e' : '#ef4444' }}>
+                            {isActive ? 'Accès autorisé aux boutiques' : 'Message "Bientôt disponible" actif'}
+                          </span>
+
+                          {/* iOS-Style Toggle Switch */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleModule(mod.key, !isActive)}
+                            title={isActive ? 'Cliquer pour désactiver' : 'Cliquer pour réactiver'}
+                            style={{
+                              width: 54,
+                              height: 30,
+                              borderRadius: 20,
+                              background: isActive ? '#22c55e' : '#374151',
+                              border: 'none',
+                              position: 'relative',
+                              cursor: 'pointer',
+                              transition: 'background 0.25s',
+                              padding: 3,
+                              flexShrink: 0
+                            }}
+                          >
+                            <div style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              background: '#ffffff',
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
+                              transition: 'transform 0.25s',
+                              transform: isActive ? 'translateX(24px)' : 'translateX(0)'
+                            }} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

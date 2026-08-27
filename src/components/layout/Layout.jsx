@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell, MessageCircle, PiggyBank, FileImage, Megaphone, ChevronDown
+  Bell, MessageCircle, PiggyBank, FileImage, Megaphone, ChevronDown, RotateCcw
 } from 'lucide-react';
 import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
@@ -13,25 +13,26 @@ import './Layout.css';
 
 const ALL_NAV_ITEMS = [
   { path: '/',             label: 'Tableau de bord', Icon: LayoutDashboard, exact: true },
-  { path: '/factures',     label: 'Factures',         Icon: FileText },
-  { path: '/clients',      label: 'Clients',           Icon: Users },
-  { path: '/voyages',      label: 'Voyages',           Icon: Truck },
-  { path: '/depenses',     label: 'Dépenses',          Icon: TrendingDown },
-  { path: '/communiques',  label: 'Communiqués',       Icon: Megaphone },
-  { path: '/flyer',        label: 'Flyer',             Icon: FileImage },
-  { path: '/epargnes',     label: 'Épargne',           Icon: PiggyBank, adminOnly: true },
-  { path: '/statistiques', label: 'Statistiques',      Icon: BarChart2, adminOnly: true },
+  { path: '/factures',     label: 'Factures',         Icon: FileText, key: 'factures' },
+  { path: '/clients',      label: 'Clients',           Icon: Users, key: 'clients' },
+  { path: '/voyages',      label: 'Voyages',           Icon: Truck, key: 'voyages' },
+  { path: '/depenses',     label: 'Dépenses',          Icon: TrendingDown, key: 'depenses' },
+  { path: '/remboursements', label: 'Remboursements', Icon: RotateCcw, key: 'remboursements' },
+  { path: '/communiques',  label: 'Communiqués',       Icon: Megaphone, key: 'communiques' },
+  { path: '/flyer',        label: 'Flyer',             Icon: FileImage, key: 'flyer' },
+  { path: '/epargnes',     label: 'Épargne',           Icon: PiggyBank, adminOnly: true, key: 'epargne' },
+  { path: '/statistiques', label: 'Statistiques',      Icon: BarChart2, adminOnly: true, key: 'statistiques' },
 ];
 
 const SETTINGS_ITEMS = [
-  { path: '/users',        label: 'Employés',         Icon: Shield, adminOnly: true },
-  { path: '/parametres',   label: 'Paramètres',       Icon: Settings, adminOnly: true },
+  { path: '/users',        label: 'Employés',         Icon: Shield, adminOnly: true, key: 'employes' },
+  { path: '/parametres',   label: 'Paramètres',       Icon: Settings, adminOnly: true, key: 'parametres' },
 ];
 
 export default function Layout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { nomEntreprise, toggleTheme, isDark, refresh, devise, viewDevise, changeViewDevise, rates } = useApp();
+  const { nomEntreprise, toggleTheme, isDark, refresh, devise, viewDevise, changeViewDevise, rates, isModuleActive } = useApp();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -260,6 +261,9 @@ export default function Layout({ children }) {
     if (n.path === '/voyages' && isEmployee && !permissions.voirVoyages) return false;
     if (n.path === '/factures' && isEmployee && !permissions.voirFactures) return false;
     if (n.path === '/depenses' && isEmployee && !permissions.voirDepenses) return false;
+    if (n.path === '/remboursements' && isEmployee && !permissions.voirRemboursements) return false;
+    if (n.path === '/communiques' && isEmployee && !permissions.voirCommuniques) return false;
+    if (n.path === '/flyer' && isEmployee && !permissions.voirFlyer) return false;
     return true;
   });
   const SETTINGS = SETTINGS_ITEMS.filter(n => !n.adminOnly || isAdmin);
@@ -269,20 +273,40 @@ export default function Layout({ children }) {
   )?.label || 'EasyFac';
 
   const renderNavItem = (item) => {
-    const { path, label, Icon, exact } = item;
+    const { path, label, Icon, exact, key } = item;
+    const isDisabled = key && !isModuleActive(key);
+
     return (
       <NavLink
         key={path}
         to={path}
         end={exact}
-        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        className={({ isActive }) => `nav-item ${isActive ? 'active' : ''} ${isDisabled ? 'disabled-module' : ''}`}
         onClick={() => setMobileOpen(false)}
-        title={collapsed ? label : undefined}
+        title={collapsed ? (isDisabled ? `${label} (Bientôt disponible)` : label) : undefined}
       >
-        <span className="nav-icon">
+        <span className="nav-icon" style={{ opacity: isDisabled ? 0.6 : 1 }}>
           <Icon size={17} strokeWidth={1.8} />
         </span>
-        {!collapsed && <span className="nav-label">{label}</span>}
+        {!collapsed && (
+          <span className="nav-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <span style={{ opacity: isDisabled ? 0.75 : 1 }}>{label}</span>
+            {isDisabled && (
+              <span style={{
+                fontSize: '9.5px',
+                fontWeight: 800,
+                padding: '2px 6px',
+                borderRadius: '6px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: 'var(--warning)',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                whiteSpace: 'nowrap'
+              }}>
+                Bientôt dispo
+              </span>
+            )}
+          </span>
+        )}
       </NavLink>
     );
   };
@@ -316,22 +340,24 @@ export default function Layout({ children }) {
             style={{ marginLeft: collapsed ? '0' : 'auto' }}
           >
             {collapsed
-              ? <ChevronRight size={14} strokeWidth={2.5} />
-              : <ChevronLeft  size={14} strokeWidth={2.5} />
+              ? <ChevronRight size={16} strokeWidth={2.5} />
+              : <ChevronLeft  size={16} strokeWidth={2.5} />
             }
           </button>
         </div>
 
         {/* Navigation */}
         <nav className="sidebar-nav">
-          {!collapsed && <span className="nav-section-label">Principal</span>}
-          {NAV_ITEMS.map(renderNavItem)}
+          <div className="nav-section">
+            {!collapsed && <span className="nav-section-label">Principal</span>}
+            {NAV_ITEMS.map(renderNavItem)}
+          </div>
 
           {SETTINGS.length > 0 && (
-            <>
-              {!collapsed && <span className="nav-section-label" style={{ marginTop: 8 }}>Système</span>}
+            <div className="nav-section" style={{ marginTop: 8 }}>
+              {!collapsed && <span className="nav-section-label">Système</span>}
               {SETTINGS.map(renderNavItem)}
-            </>
+            </div>
           )}
         </nav>
 
@@ -396,98 +422,112 @@ export default function Layout({ children }) {
 
           <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
             {/* 💱 PREMIUM CURRENCY SWITCHER DROPDOWN */}
-            <div style={{ position: 'relative' }} ref={currencyDropdownRef}>
-              <button
-                onClick={() => setShowCurrencyDropdown(o => !o)}
+            {isModuleActive('devise') ? (
+              <div style={{ position: 'relative' }} ref={currencyDropdownRef}>
+                <button
+                  onClick={() => setShowCurrencyDropdown(o => !o)}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    color: 'var(--text-primary)',
+                    height: '38px',
+                    padding: '0 12px',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '700',
+                    fontSize: '13px',
+                    transition: 'all 0.2s',
+                    userSelect: 'none'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
+                  title="Changer la devise d'affichage"
+                >
+                  <span style={{ fontSize: '15px' }}>{currentCurrency.flag}</span>
+                  <span>{currentCurrency.label}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: '500' }}>({currentCurrency.symbol})</span>
+                  <ChevronDown size={12} style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: showCurrencyDropdown ? 'rotate(180deg)' : 'none' }} />
+                </button>
+
+                {showCurrencyDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    width: '220px',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: '12px',
+                    boxShadow: 'var(--shadow-xl)',
+                    zIndex: 500,
+                    padding: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '2px'
+                  }}>
+                    {CURRENCIES.map(c => {
+                      const active = c.value === viewDevise;
+                      return (
+                        <button
+                          key={c.value}
+                          onClick={() => {
+                            changeViewDevise(c.value);
+                            setShowCurrencyDropdown(false);
+                          }}
+                          style={{
+                            background: active ? 'var(--brand-muted)' : 'transparent',
+                            border: 'none',
+                            color: active ? 'var(--brand)' : 'var(--text-primary)',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            width: '100%',
+                            transition: 'all 0.15s',
+                            fontWeight: active ? '700' : '500',
+                            fontSize: '13px'
+                          }}
+                        >
+                          <span style={{ fontSize: '16px' }}>{c.flag}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                            <span style={{ fontWeight: 700 }}>{c.label} ({c.symbol})</span>
+                            <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: '400' }}>{c.desc}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                title="Sélecteur de devise désactivé par le Super Admin"
                 style={{
                   background: 'var(--bg-elevated)',
                   border: '1px solid var(--border-default)',
-                  color: 'var(--text-primary)',
+                  color: 'var(--text-muted)',
                   height: '38px',
                   padding: '0 12px',
                   borderRadius: '10px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '700',
-                  fontSize: '13px',
-                  transition: 'all 0.2s',
-                  userSelect: 'none'
+                  gap: '6px',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  opacity: 0.6,
+                  cursor: 'not-allowed'
                 }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-strong)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-default)'}
-                title="Changer la devise d'affichage"
               >
-                <span style={{ fontSize: '15px' }}>{currentCurrency.flag}</span>
-                <span>{currentCurrency.label}</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: '500' }}>({currentCurrency.symbol})</span>
-                <ChevronDown size={12} style={{ color: 'var(--text-secondary)', transition: 'transform 0.2s', transform: showCurrencyDropdown ? 'rotate(180deg)' : 'none' }} />
-              </button>
-
-              {showCurrencyDropdown && (
-                <div style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  width: '220px',
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: '12px',
-                  boxShadow: 'var(--shadow-xl)',
-                  zIndex: 500,
-                  padding: '6px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px'
-                }}>
-                  {CURRENCIES.map(c => {
-                    const active = c.value === viewDevise;
-                    return (
-                      <button
-                        key={c.value}
-                        onClick={() => {
-                          changeViewDevise(c.value);
-                          setShowCurrencyDropdown(false);
-                        }}
-                        style={{
-                          background: active ? 'var(--brand-muted)' : 'transparent',
-                          border: 'none',
-                          color: active ? 'var(--brand)' : 'var(--text-primary)',
-                          padding: '10px 12px',
-                          borderRadius: '8px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '10px',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          width: '100%',
-                          transition: 'all 0.15s',
-                          fontWeight: active ? '700' : '500',
-                          fontSize: '13px'
-                        }}
-                        onMouseEnter={e => {
-                          if (!active) {
-                            e.currentTarget.style.background = 'var(--bg-elevated)';
-                          }
-                        }}
-                        onMouseLeave={e => {
-                          if (!active) {
-                            e.currentTarget.style.background = 'transparent';
-                          }
-                        }}
-                      >
-                        <span style={{ fontSize: '16px' }}>{c.flag}</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-                          <span style={{ fontWeight: 700 }}>{c.label} ({c.symbol})</span>
-                          <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: '400' }}>{c.desc}</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                <span>{currentCurrency.flag} {currentCurrency.label}</span>
+                <span style={{ fontSize: '9.5px', background: 'rgba(245, 158, 11, 0.15)', color: 'var(--warning)', padding: '2px 6px', borderRadius: '6px', fontWeight: 800 }}>🔒 Verrouillé</span>
+              </div>
+            )}
 
             {/* 🔔 ADMIN NOTIFICATIONS BELL BUTTON */}
             {isAdmin && (

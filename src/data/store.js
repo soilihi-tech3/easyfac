@@ -704,6 +704,85 @@ export const deleteEpargne = async (id) => {
   return { success: true };
 };
 
+// ---- REMBOURSEMENTS ----
+export const getRemboursements = async () => {
+  let data;
+  try {
+    if (isOnline()) {
+      data = await apiCall('/api/remboursements');
+      setLocalCache('remboursements', data);
+    } else {
+      data = getLocalCache('remboursements');
+    }
+  } catch (e) {
+    console.log('Falling back to local cache for remboursements...');
+    data = getLocalCache('remboursements');
+  }
+  return data || [];
+};
+
+export const addRemboursement = async (data) => {
+  if (!isOnline()) {
+    const tempId = generateLocalId();
+    const newRemb = {
+      id: tempId,
+      ...data,
+      createdAt: new Date().toISOString(),
+      creePar: { nom: 'Admin', prenom: 'Super', role: 'admin' }
+    };
+    const list = getLocalCache('remboursements');
+    list.unshift(newRemb);
+    setLocalCache('remboursements', list);
+
+    pushToSyncQueue({ method: 'POST', url: '/api/remboursements', body: data, tempId });
+    return newRemb;
+  }
+
+  const res = await apiCall('/api/remboursements', 'POST', data);
+  const list = getLocalCache('remboursements');
+  list.unshift(res);
+  setLocalCache('remboursements', list);
+  return res;
+};
+
+export const updateRemboursement = async (id, data) => {
+  if (!isOnline()) {
+    const list = getLocalCache('remboursements');
+    const idx = list.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...data };
+      setLocalCache('remboursements', list);
+    }
+    pushToSyncQueue({ method: 'PUT', url: `/api/remboursements/${id}`, body: data });
+    return { id, ...data };
+  }
+
+  const res = await apiCall(`/api/remboursements/${id}`, 'PUT', data);
+  const list = getLocalCache('remboursements');
+  const idx = list.findIndex(r => r.id === id);
+  if (idx !== -1) {
+    list[idx] = res;
+    setLocalCache('remboursements', list);
+  }
+  return res;
+};
+
+export const deleteRemboursement = async (id) => {
+  if (!isOnline()) {
+    const list = getLocalCache('remboursements');
+    setLocalCache('remboursements', list.filter(r => r.id !== id));
+    pushToSyncQueue({ method: 'DELETE', url: `/api/remboursements/${id}` });
+    return { success: true };
+  }
+
+  await apiCall(`/api/remboursements/${id}`, 'DELETE');
+  const list = getLocalCache('remboursements');
+  setLocalCache('remboursements', list.filter(r => r.id !== id));
+  return { success: true };
+};
+
+export const getRemboursementsCache = () => getLocalCache('remboursements');
+
 // ---- PARAMETRES ----
 export const getParametres = async () => {
   try {
@@ -896,6 +975,43 @@ export const createSuperAdminDepense = async (data) => {
 
 export const deleteSuperAdminDepense = async (id) => {
   return apiCall(`/api/superadmin/depenses/${id}`, 'DELETE');
+};
+
+// ---- MODULES FEATURE FLAGS ----
+const modulesChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('easyfac_modules_channel') : null;
+
+export const getAppModules = async () => {
+  try {
+    const data = await apiCall('/api/modules');
+    if (data && data.modules) {
+      localStorage.setItem('ef_cache_modules', JSON.stringify(data.modules));
+      return data.modules;
+    }
+  } catch (e) {
+    console.error('Fallback modules cache:', e);
+  }
+  try {
+    const cached = localStorage.getItem('ef_cache_modules');
+    if (cached) return JSON.parse(cached);
+  } catch (e) {}
+  return {
+    factures: true, clients: true, voyages: true, depenses: true,
+    remboursements: true, communiques: true, flyer: true, epargne: true,
+    statistiques: true, parametres: true, employes: true, devise: true
+  };
+};
+
+export const updateAppModules = async (modules) => {
+  const res = await apiCall('/api/modules', 'PUT', { modules });
+  if (res && res.modules) {
+    localStorage.setItem('ef_cache_modules', JSON.stringify(res.modules));
+    if (modulesChannel) {
+      try {
+        modulesChannel.postMessage({ type: 'MODULES_UPDATED', modules: res.modules });
+      } catch (err) {}
+    }
+  }
+  return res;
 };
 
 

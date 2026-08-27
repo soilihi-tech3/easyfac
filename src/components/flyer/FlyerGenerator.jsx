@@ -2,8 +2,9 @@ import React, { useState, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import {
   Download, ArrowRightLeft, Plane, MapPin, Phone,
-  Calendar, DollarSign, Sparkles, RefreshCw, Upload, AlertTriangle, Info, Image as ImageIcon
+  Calendar, DollarSign, Sparkles, RefreshCw, Upload, AlertTriangle, Info, Image as ImageIcon, X
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import './FlyerGenerator.css';
 
 // SVG Flag Components
@@ -86,6 +87,26 @@ const AIRLINE_OPTIONS = [
 ];
 
 export default function FlyerGenerator() {
+  const { user } = useAuth();
+  let permissions = {};
+  if (user?.permissions) {
+    try {
+      permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    } catch (e) {}
+  }
+
+  if (user?.role === 'employee' && !permissions.voirFlyer) {
+    return (
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', textAlign: 'center', gap: 16 }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-muted)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <X size={32} />
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800 }}>Accès non autorisé</h2>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: 400 }}>Vous ne disposez pas des droits d'accès requis pour utiliser le générateur de flyer.</p>
+      </div>
+    );
+  }
+
   const flyerRef = useRef(null);
   const fileInputRef = useRef(null);
   const airlineFileInputRef = useRef(null);

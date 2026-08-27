@@ -4,6 +4,7 @@ import {
   Sparkles, Filter, CheckSquare, Square, RefreshCw, AlertCircle, Phone
 } from 'lucide-react';
 import { getVoyages, getFactures, getClients, getParametres, API_URL } from '../../data/store';
+import { useAuth } from '../../context/AuthContext';
 import './Communiques.css';
 
 const MESSAGE_TEMPLATES = [
@@ -30,6 +31,25 @@ const MESSAGE_TEMPLATES = [
 ];
 
 export default function Communiques() {
+  const { user } = useAuth();
+  let permissions = {};
+  if (user?.permissions) {
+    try {
+      permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    } catch (e) {}
+  }
+
+  if (user?.role === 'employee' && !permissions.voirCommuniques) {
+    return (
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', textAlign: 'center', gap: 16 }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--danger-muted)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <AlertCircle size={32} />
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800 }}>Accès non autorisé</h2>
+        <p style={{ color: 'var(--text-secondary)', maxWidth: 400 }}>Vous ne disposez pas des droits d'accès requis pour consulter ou envoyer des communiqués.</p>
+      </div>
+    );
+  }
   const [voyages, setVoyages] = useState([]);
   const [factures, setFactures] = useState([]);
   const [allClients, setAllClients] = useState([]);

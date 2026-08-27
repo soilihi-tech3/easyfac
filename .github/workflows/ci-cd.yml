@@ -1,0 +1,52 @@
+name: EasyFac CI/CD Quality & Security Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-quality:
+    name: 🛡️ Backend Code Quality & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Check Backend Syntax
+        run: |
+          node -c backend/server.js
+          echo "✅ Backend syntax check passed successfully."
+
+  frontend-build:
+    name: 🚀 Frontend Build & Quality Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci || npm install
+
+      - name: Build Production Web App
+        run: npm run build
+        env:
+          CI: false
+
+      - name: Verify Build Artifact Output
+        run: |
+          test -d build && test -f build/index.html
+          echo "🎉 Frontend production build artifact verified."

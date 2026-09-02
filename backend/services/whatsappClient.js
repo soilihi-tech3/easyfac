@@ -162,6 +162,10 @@ class WhatsAppManager {
           takeoverOnConflict: true,
           takeoverTimeoutMs: 0,
           qrMaxRetries: 10,
+          webVersionCache: {
+            type: 'remote',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018949826-alpha.html',
+          },
           userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           puppeteer: {
             executablePath: executablePath || undefined,
@@ -190,12 +194,11 @@ class WhatsAppManager {
                 const url = req.url();
                 const type = req.resourceType();
                 if (
-                  ['image', 'media', 'font'].includes(type) ||
-                  url.includes('pps.whatsapp.net') || // Profile Pictures
-                  url.includes('sticker') || // Stickers
-                  url.includes('/dyn/media') || // Media downloads
-                  url.includes('telemetry') || // Telemetry
-                  url.includes('logging') // Logs
+                  (['media', 'font'].includes(type) && !url.includes('static.whatsapp.net')) ||
+                  url.includes('sticker') || 
+                  url.includes('/dyn/media') || 
+                  url.includes('telemetry') || 
+                  url.includes('logging')
                 ) {
                   req.abort();
                 } else {
@@ -297,11 +300,13 @@ class WhatsAppManager {
     if (!boutiqueId) return { status: 'ERROR', message: "boutiqueId requis" };
     let clientData = this.clients.get(boutiqueId);
     if (!clientData) {
-      try {
-        clientData = await this.getClientData(boutiqueId);
-      } catch (e) {
-        return { status: 'ERROR', message: e.message };
-      }
+      const sessionPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+      const hasSavedSession = fs.existsSync(sessionPath);
+      return {
+        status: hasSavedSession ? 'SAVED_SESSION' : 'DISCONNECTED',
+        qr: null,
+        phone: null
+      };
     }
     return {
       status: clientData.status,
@@ -396,7 +401,27 @@ class WhatsAppManager {
     const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename);
     await clientData.client.sendMessage(chatId, media, { caption });
   }
+
+  async destroyAll() {
+    for (const [id, data] of this.clients.entries()) {
+      try {
+        if (data.client) await data.client.destroy();
+      } catch (e) {}
+    }
+    this.clients.clear();
+  }
 }
 
 const whatsappManager = new WhatsAppManager();
+
+const gracefulShutdown = async () => {
+  try {
+    await whatsappManager.destroyAll();
+  } catch (e) {}
+};
+
+process.once('SIGINT', gracefulShutdown);
+process.once('SIGTERM', gracefulShutdown);
+process.once('SIGUSR2', gracefulShutdown);
+
 module.exports = whatsappManager;

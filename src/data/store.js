@@ -822,6 +822,20 @@ export const updateParametres = async (data) => {
   return res;
 };
 
+export const resetAllData = async () => {
+  if (isOnline()) {
+    await apiCall('/api/reset-data', 'POST');
+  }
+  // Clear activity caches but keep clients, parametres & auth tokens
+  localStorage.removeItem('ef_cache_factures');
+  localStorage.removeItem('ef_cache_depenses');
+  localStorage.removeItem('ef_cache_voyages');
+  localStorage.removeItem('ef_cache_epargnes');
+  localStorage.removeItem('ef_cache_remboursements');
+  localStorage.removeItem('ef_sync_queue');
+  window.location.reload();
+};
+
 // ---- STATISTIQUES ----
 export const getStats = async () => {
   const [factures, depenses, clients] = await Promise.all([

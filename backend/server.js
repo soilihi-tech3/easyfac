@@ -1,23 +1,57 @@
 require('dotenv').config();
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.warn('Unhandled Rejection caught (prevented server crash):', reason ? (reason.message || reason) : reason);
+  const msg = reason ? (reason.message || String(reason)) : '';
+  if (
+    msg.includes('Target closed') || 
+    msg.includes('Session closed') || 
+    msg.includes('Protocol error') ||
+    msg.includes('Execution context was destroyed')
+  ) {
+    return;
+  }
+  console.warn('Unhandled Rejection caught (prevented server crash):', msg);
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception caught (prevented server crash):', err ? (err.message || err) : err);
+  const msg = err ? (err.message || String(err)) : '';
+  if (
+    msg.includes('Target closed') || 
+    msg.includes('Session closed') || 
+    msg.includes('Protocol error')
+  ) {
+    return;
+  }
+  console.error('Uncaught Exception caught (prevented server crash):', msg);
 });
 
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const exchangeRatesService = require('./services/exchangeRates');
+const cacheService = require('./services/cache');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'easyfac-super-secret-key-2026';
 
 const app = express();
+
+// High Performance Middleware: Response Compression (reduces bandwidth by ~80%)
+app.use(compression());
+
+// Rate Limiter to prevent DDOS / API spam (1500 requests per 15 minutes per IP)
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1500,
+  message: { error: "Trop de requêtes depuis cette IP, veuillez réessayer plus tard." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', apiLimiter);
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -238,7 +272,15 @@ app.delete('/api/users/:id', async (req, res) => {
 // --- CLIENTS ---
 app.get('/api/clients', async (req, res) => {
   try {
+    const cacheKey = `api_clients_${req.user.boutique_id}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json(cached);
+    }
     const [rows] = await pool.query('SELECT * FROM clients WHERE boutique_id = ? ORDER BY createdAt DESC', [req.user.boutique_id]);
+    await cacheService.set(cacheKey, rows, 60);
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -253,6 +295,8 @@ app.post('/api/clients', async (req, res) => {
       'INSERT INTO clients (id, nom, prenom, telephone, email, boutique_id) VALUES (?, ?, ?, ?, ?, ?)',
       [id, nom, prenom, telephone, email, req.user.boutique_id]
     );
+    await cacheService.delByPrefix(`api_clients_${req.user.boutique_id}`);
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     const [rows] = await pool.query('SELECT * FROM clients WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) {
@@ -267,6 +311,8 @@ app.put('/api/clients/:id', async (req, res) => {
       'UPDATE clients SET nom = ?, prenom = ?, telephone = ?, email = ? WHERE id = ? AND boutique_id = ?',
       [nom, prenom, telephone, email, req.params.id, req.user.boutique_id]
     );
+    await cacheService.delByPrefix(`api_clients_${req.user.boutique_id}`);
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     res.json({ id: req.params.id, ...req.body });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -278,11 +324,9 @@ app.delete('/api/clients/:id', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. Unlink client from any existing invoices as sender or recipient
     await connection.query('UPDATE factures SET expediteurId = NULL WHERE expediteurId = ?', [req.params.id]);
     await connection.query('UPDATE factures SET destinataireId = NULL WHERE destinataireId = ?', [req.params.id]);
 
-    // 2. Delete the client (supporting multi-tenant boutique_id and null boutique_id)
     if (req.user.boutique_id) {
       await connection.query('DELETE FROM clients WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);
     } else {
@@ -290,6 +334,8 @@ app.delete('/api/clients/:id', async (req, res) => {
     }
 
     await connection.commit();
+    await cacheService.delByPrefix(`api_clients_${req.user.boutique_id}`);
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     res.json({ success: true });
   } catch (error) {
     await connection.rollback();
@@ -303,6 +349,12 @@ app.delete('/api/clients/:id', async (req, res) => {
 // --- VOYAGES ---
 app.get('/api/voyages', async (req, res) => {
   try {
+    const cacheKey = `api_voyages_${req.user.boutique_id}_${req.user.role}_${req.user.voyageId || 'all'}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json(cached);
+    }
     let query = 'SELECT * FROM voyages WHERE boutique_id = ? ORDER BY dateDepart DESC';
     let params = [req.user.boutique_id];
     if (req.user.role === 'employee' && req.user.voyageId) {
@@ -310,6 +362,8 @@ app.get('/api/voyages', async (req, res) => {
       params = [req.user.boutique_id, req.user.voyageId];
     }
     const [rows] = await pool.query(query, params);
+    await cacheService.set(cacheKey, rows, 60);
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -324,6 +378,7 @@ app.post('/api/voyages', async (req, res) => {
       'INSERT INTO voyages (id, nom, dateDepart, statut, boutique_id) VALUES (?, ?, ?, ?, ?)',
       [id, nom, dateDepart, statut || 'en_cours', req.user.boutique_id]
     );
+    await cacheService.delByPrefix(`api_voyages_${req.user.boutique_id}`);
     const [rows] = await pool.query('SELECT * FROM voyages WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) {
@@ -338,6 +393,7 @@ app.put('/api/voyages/:id', async (req, res) => {
       'UPDATE voyages SET nom = ?, dateDepart = ?, statut = ? WHERE id = ? AND boutique_id = ?',
       [nom, dateDepart, statut, req.params.id, req.user.boutique_id]
     );
+    await cacheService.delByPrefix(`api_voyages_${req.user.boutique_id}`);
     res.json({ id: req.params.id, ...req.body });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -360,6 +416,7 @@ app.delete('/api/voyages/:id', async (req, res) => {
     }
 
     await connection.commit();
+    await cacheService.delByPrefix(`api_voyages_${req.user.boutique_id}`);
     res.json({ success: true });
   } catch (error) {
     await connection.rollback();
@@ -373,6 +430,12 @@ app.delete('/api/voyages/:id', async (req, res) => {
 // --- DEPENSES ---
 app.get('/api/depenses', async (req, res) => {
   try {
+    const cacheKey = `api_depenses_${req.user.boutique_id}_${req.user.role}_${req.user.voyageId || 'all'}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json(cached);
+    }
     let query = 'SELECT * FROM depenses WHERE boutique_id = ? ORDER BY createdAt DESC';
     let params = [req.user.boutique_id];
     let usersQuery = 'SELECT id, nom, prenom FROM users WHERE boutique_id = ?';
@@ -397,6 +460,8 @@ app.get('/api/depenses', async (req, res) => {
       ...d,
       creePar: userMap[d.userId] || null
     }));
+    await cacheService.set(cacheKey, result, 60);
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -413,6 +478,7 @@ app.post('/api/depenses', async (req, res) => {
       'INSERT INTO depenses (id, nom, montant, quantite, voyageId, userId, boutique_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, nom, montant, quantite || 1, voyageId || null, req.user.id, boutique_id]
     );
+    await cacheService.delByPrefix(`api_depenses_${req.user.boutique_id}`);
     const [rows] = await pool.query('SELECT * FROM depenses WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (error) {
@@ -433,6 +499,7 @@ app.put('/api/depenses/:id', async (req, res) => {
       params = [nom, montant, quantite || 1, voyageId || null, req.params.id, 'super_admin'];
     }
     await pool.query(query, params);
+    await cacheService.delByPrefix(`api_depenses_${req.user.boutique_id}`);
     res.json({ id: req.params.id, ...req.body });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -448,6 +515,7 @@ app.delete('/api/depenses/:id', async (req, res) => {
       params = [req.params.id, 'super_admin'];
     }
     await pool.query(query, params);
+    await cacheService.delByPrefix(`api_depenses_${req.user.boutique_id}`);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -457,7 +525,14 @@ app.delete('/api/depenses/:id', async (req, res) => {
 // --- EXCHANGE RATES ---
 app.get('/api/exchange-rates', async (req, res) => {
   try {
+    const cached = await cacheService.get('api_exchange_rates');
+    if (cached) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json(cached);
+    }
     const data = await exchangeRatesService.getRates();
+    await cacheService.set('api_exchange_rates', data, 300); // 5 min cache
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -467,18 +542,28 @@ app.get('/api/exchange-rates', async (req, res) => {
 // --- PARAMETRES ---
 app.get('/api/parametres', async (req, res) => {
   try {
+    const cacheKey = `api_parametres_${req.user.boutique_id}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json(cached);
+    }
     const [rows] = await pool.query('SELECT * FROM settings WHERE boutique_id = ?', [req.user.boutique_id]);
+    let result;
     if (rows.length > 0) {
-      res.json({
+      result = {
         entreprise: typeof rows[0].entreprise === 'string' ? JSON.parse(rows[0].entreprise) : rows[0].entreprise,
         config: typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config
-      });
+      };
     } else {
-      res.json({
+      result = {
         entreprise: { nom: 'Ma Boutique', telephone1: '', email: '', adresse: '' },
         config: { prixKg: 6000, devise: 'FCFA', couleurPrimaire: '#6366f1', modeSombre: true, formatNumero: 'Fac-{YEAR2}-{NUM2}', modeleFacture: 'moderne', compteur: 0 }
-      });
+      };
     }
+    await cacheService.set(cacheKey, result, 60); // 60s cache
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -503,6 +588,9 @@ app.put('/api/parametres', async (req, res) => {
       );
     }
     
+    // Invalidate cache immediately
+    await cacheService.del(`api_parametres_${req.user.boutique_id}`);
+
     // Re-initialize dynamic cron with new settings immediately!
     await initReminderCron();
 
@@ -511,6 +599,52 @@ app.put('/api/parametres', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// --- REINITIALISER LES DONNEES DE LA BOUTIQUE (Conserve Clients & Paramètres) ---
+app.post('/api/reset-data', async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Seul un administrateur peut réinitialiser les données de la boutique.' });
+  }
+
+  const boutiqueId = req.user.boutique_id;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    if (boutiqueId) {
+      // 1. Supprimer les articles de factures
+      await connection.query(
+        'DELETE FROM facture_articles WHERE factureId IN (SELECT id FROM factures WHERE boutique_id = ?)',
+        [boutiqueId]
+      );
+      // 2. Supprimer les factures
+      await connection.query('DELETE FROM factures WHERE boutique_id = ?', [boutiqueId]);
+      // 3. Supprimer les dépenses
+      await connection.query('DELETE FROM depenses WHERE boutique_id = ?', [boutiqueId]);
+      // 4. Supprimer les épargnes
+      await connection.query('DELETE FROM epargnes WHERE boutique_id = ?', [boutiqueId]);
+      // 5. Supprimer les remboursements
+      await connection.query('DELETE FROM remboursements WHERE boutique_id = ?', [boutiqueId]);
+      // 6. Supprimer les voyages
+      await connection.query('DELETE FROM voyages WHERE boutique_id = ?', [boutiqueId]);
+      // (Note : Les clients et les paramètres restent inchangés comme demandé)
+    }
+
+    await connection.commit();
+    await cacheService.delByPrefix(`api_factures_${boutiqueId}`);
+    await cacheService.delByPrefix(`api_voyages_${boutiqueId}`);
+    await cacheService.delByPrefix(`api_depenses_${boutiqueId}`);
+    res.json({ success: true, message: 'Factures, dépenses, voyages, épargnes et remboursements réinitialisés avec succès. Les clients et paramètres ont été conservés.' });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Erreur réinitialisation boutique:', error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    connection.release();
+  }
+});
+
 
 // --- MODULES FEATURE FLAGS ---
 const DEFAULT_GLOBAL_MODULES = {
@@ -530,7 +664,18 @@ const DEFAULT_GLOBAL_MODULES = {
 
 app.get('/api/modules', async (req, res) => {
   try {
+    const cached = await cacheService.get('api_modules');
+    if (cached) {
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.json(cached);
+    }
     const [rows] = await pool.query("SELECT config FROM settings WHERE boutique_id = 'super_admin'");
+    let result = {
+      modules: {
+        global: DEFAULT_GLOBAL_MODULES,
+        boutiques: {}
+      }
+    };
     if (rows.length > 0 && rows[0].config) {
       const cfg = typeof rows[0].config === 'string' ? JSON.parse(rows[0].config) : rows[0].config;
       if (cfg.modules) {
@@ -545,20 +690,17 @@ app.get('/api/modules', async (req, res) => {
           globalModules = { ...DEFAULT_GLOBAL_MODULES, ...cfg.modules };
         }
 
-        return res.json({
+        result = {
           modules: {
             global: globalModules,
             boutiques: boutiqueModules
           }
-        });
+        };
       }
     }
-    res.json({
-      modules: {
-        global: DEFAULT_GLOBAL_MODULES,
-        boutiques: {}
-      }
-    });
+    await cacheService.set('api_modules', result, 60); // 60s cache
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json(result);
   } catch (error) {
     res.json({
       modules: {
@@ -598,6 +740,8 @@ app.put('/api/modules', async (req, res) => {
       );
     }
     
+    await cacheService.del('api_modules');
+
     res.json({ success: true, modules });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -794,6 +938,12 @@ app.get('/api/cron/reminders', async (req, res) => {
 
 app.get('/api/factures', async (req, res) => {
   try {
+    const cacheKey = `api_factures_${req.user.boutique_id}_${req.user.role}_${req.user.voyageId || 'all'}`;
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.json(cached);
+    }
     let query = 'SELECT * FROM factures WHERE boutique_id = ? ORDER BY createdAt DESC';
     let params = [req.user.boutique_id];
     if (req.user.role === 'employee' && req.user.voyageId) {
@@ -801,7 +951,10 @@ app.get('/api/factures', async (req, res) => {
       params = [req.user.boutique_id, req.user.voyageId];
     }
     const [factures] = await pool.query(query, params);
-    if (factures.length === 0) return res.json([]);
+    if (factures.length === 0) {
+      await cacheService.set(cacheKey, [], 60);
+      return res.json([]);
+    }
     
     // Fetch only the articles for these specific factures
     const factureIds = factures.map(f => f.id);
@@ -831,6 +984,8 @@ app.get('/api/factures', async (req, res) => {
       creePar: userMap[f.userId] || null
     }));
 
+    await cacheService.set(cacheKey, result, 60);
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -882,6 +1037,7 @@ app.post('/api/factures', async (req, res) => {
     }
 
     await connection.commit();
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     res.json({ id, ...req.body, userId: req.user.id });
   } catch (error) {
     await connection.rollback();
@@ -937,6 +1093,7 @@ app.put('/api/factures/:id', async (req, res) => {
     }
 
     await connection.commit();
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     res.json({ id: factureId, ...req.body });
   } catch (error) {
     await connection.rollback();
@@ -964,8 +1121,6 @@ app.delete('/api/factures/:id', async (req, res) => {
     
     // 1. Delete associated articles first to prevent MySQL foreign key constraint failure
     await connection.query('DELETE FROM facture_articles WHERE factureId = ?', [req.params.id]);
-
-    // 2. Delete invoice by ID (supporting both multi-tenant boutique_id and null boutique_id)
     if (req.user.boutique_id) {
       await connection.query('DELETE FROM factures WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);
     } else {
@@ -973,10 +1128,11 @@ app.delete('/api/factures/:id', async (req, res) => {
     }
 
     await connection.commit();
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
     res.json({ success: true });
   } catch (error) {
     await connection.rollback();
-    console.error("Error deleting invoice:", error);
+    console.error("Error deleting facture:", error);
     res.status(500).json({ error: error.message });
   } finally {
     connection.release();

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getParametres, updateParametres, getVoyages, getParametresCache, getVoyagesCache, API_URL, convertCurrency } from '../../data/store';
+import { getParametres, updateParametres, getVoyages, getParametresCache, getVoyagesCache, API_URL, convertCurrency, resetAllData } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import {
   Save, Building2, Image, Settings2, FileText as FileIcon,
@@ -30,6 +30,7 @@ export default function Parametres() {
   const [voyages, setVoyages] = useState(() => getVoyagesCache() || []);
   const [loading, setLoading] = useState(() => !getParametresCache());
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [waStatus, setWaStatus] = useState({ status: 'LOADING', qr: null, phone: null });
   const [pairingPhone, setPairingPhone] = useState('');
   const [pairingCode, setPairingCode] = useState(null);
@@ -57,10 +58,11 @@ export default function Parametres() {
     };
 
     fetchWaStatus();
-    // Real-time fast polling (2s) so scanning the QR code detects connection immediately
-    interval = setInterval(fetchWaStatus, 2000);
+    // Intelligent adaptive polling: fast (5s) when pairing/QR scanning, slow (30s) otherwise
+    const isActivelyPairing = waStatus.status === 'INITIALIZING' || waStatus.status === 'QR_READY';
+    interval = setInterval(fetchWaStatus, isActivelyPairing ? 5000 : 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [waStatus.status]);
 
   useEffect(() => {
     const load = async () => {
@@ -103,10 +105,16 @@ export default function Parametres() {
     }
   };
 
-  const handleReset = () => {
-    if (window.confirm('Réinitialiser toutes les données ? Cette action est irréversible.')) {
-      localStorage.clear();
-      window.location.reload();
+  const handleReset = async () => {
+    if (window.confirm('⚠️ Êtes-vous sûr de vouloir réinitialiser l\'activité (factures, voyages, dépenses, épargnes, remboursements) ?\n\n- Vos CLIENTS seront CONSERVÉS.\n- Vos PARAMÈTRES seront CONSERVÉS.\n\nCette action supprimera toutes les factures, dépenses et voyages.')) {
+      setResetting(true);
+      try {
+        toast('Réinitialisation en cours...', 'info');
+        await resetAllData();
+      } catch (err) {
+        toast(err.message || 'Erreur lors de la réinitialisation des données', 'error');
+        setResetting(false);
+      }
     }
   };
 
@@ -675,10 +683,10 @@ export default function Parametres() {
             <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--danger)' }}>Zone de danger</h3>
           </div>
           <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginBottom: 18, lineHeight: 1.6 }}>
-            Ces actions sont irréversibles. Toutes vos données seront définitivement perdues.
+            Cette action réinitialise les factures, dépenses, épargnes, remboursements et voyages. Vos <strong>clients</strong> et vos <strong>paramètres</strong> d'entreprise restent conservés.
           </p>
-          <button className="btn btn-danger" onClick={handleReset}>
-            <Trash2 size={15} /> Réinitialiser toutes les données
+          <button className="btn btn-danger" onClick={handleReset} disabled={resetting}>
+            <Trash2 size={15} /> {resetting ? 'Réinitialisation...' : 'Réinitialiser toutes les données'}
           </button>
         </div>
       </div>

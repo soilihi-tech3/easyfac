@@ -5,10 +5,12 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, Truck, TrendingDown, BarChart2,
   Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight, Zap, LogOut, Shield,
-  Bell, MessageCircle, PiggyBank, FileImage, Megaphone, ChevronDown, RotateCcw
+  Bell, MessageCircle, PiggyBank, FileImage, Megaphone, ChevronDown, RotateCcw,
+  Smartphone
 } from 'lucide-react';
 import { getFactures, getDepenses, formatCurrency, formatDate, getParametres } from '../../data/store';
 import ReceiptModal from '../factures/ReceiptModal';
+import PwaInstallPrompt from '../pwa/PwaInstallPrompt';
 import './Layout.css';
 
 const ALL_NAV_ITEMS = [
@@ -38,6 +40,38 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
 
   const [online, setOnline] = useState(window.navigator.onLine);
+  const [isAppStandalone, setIsAppStandalone] = useState(() => {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||
+      document.referrer.includes('android-app://')
+    );
+  });
+
+  const [showPwaModal, setShowPwaModal] = useState(() => {
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||
+      document.referrer.includes('android-app://');
+    if (standalone) return false;
+    return !sessionStorage.getItem('ef_pwa_dismissed');
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleChange = (e) => {
+      setIsAppStandalone(e.matches);
+      if (e.matches) setShowPwaModal(false);
+    };
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    }
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleChange);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -421,6 +455,34 @@ export default function Layout({ children }) {
           </div>
 
           <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', position: 'relative' }}>
+            {/* 📱 PWA INSTALL BUTTON (WEB MODE ONLY) */}
+            {!isAppStandalone && (
+              <button
+                onClick={() => setShowPwaModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, var(--brand) 0%, #a855f7 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  height: '38px',
+                  padding: '0 12px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '700',
+                  fontSize: '12.5px',
+                  boxShadow: '0 2px 10px rgba(99, 102, 241, 0.3)',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap'
+                }}
+                title="Installer EasyFac sur votre écran d'accueil"
+              >
+                <Smartphone size={15} />
+                <span className="hide-mobile-sm">Installer l'app</span>
+              </button>
+            )}
+
             {/* 💱 PREMIUM CURRENCY SWITCHER DROPDOWN */}
             {isModuleActive('devise') ? (
               <div style={{ position: 'relative' }} ref={currencyDropdownRef}>
@@ -748,6 +810,15 @@ export default function Layout({ children }) {
           devise={devise}
         />
       )}
+
+      {/* ─── PWA Installation Prompt Modal ─── */}
+      <PwaInstallPrompt
+        isOpen={showPwaModal}
+        onClose={() => {
+          setShowPwaModal(false);
+          sessionStorage.setItem('ef_pwa_dismissed', 'true');
+        }}
+      />
     </div>
   );
 }

@@ -128,7 +128,7 @@ export const AppProvider = ({ children }) => {
     };
 
     fetchFastModules();
-    const pollInterval = setInterval(fetchFastModules, 3000);
+    const pollInterval = setInterval(fetchFastModules, 30000);
 
     return () => {
       if (channel) channel.close();

@@ -217,35 +217,12 @@ class WhatsAppManager {
         this.clients.set(boutiqueId, clientData);
 
         const setupRequestInterception = async () => {
-          if (client.pupPage && !client.pupPage._hasInterception) {
-            try {
-              client.pupPage._hasInterception = true;
-              await client.pupPage.setRequestInterception(true);
-              client.pupPage.on('request', (req) => {
-                const url = req.url();
-                const type = req.resourceType();
-                if (
-                  (['media', 'font'].includes(type) && !url.includes('static.whatsapp.net')) ||
-                  url.includes('sticker') || 
-                  url.includes('/dyn/media') || 
-                  url.includes('telemetry') || 
-                  url.includes('logging')
-                ) {
-                  req.abort();
-                } else {
-                  req.continue();
-                }
-              });
-              console.log(`🛡️ [RAM Saver] Activated Request Interception for boutique ${boutiqueId}`);
-            } catch (err) {
-              console.warn(`[RAM Saver] Failed to set request interception:`, err.message);
-            }
-          }
+          // Request Interception is disabled because it interferes with sending media documents
+          // and causes "Attempted to use detached Frame" in the latest whatsapp-web.js versions.
         };
 
         client.on('loading_screen', async (percent, message) => {
           console.log(`WhatsApp Loading for boutique ${boutiqueId}: ${percent}% - ${message}`);
-          await setupRequestInterception();
         });
 
         client.on('qr', async (qr) => {

@@ -10,7 +10,7 @@ const STATUT_MAP   = { paye: 'PAYÉ', partiel: 'PARTIEL', non_paye: 'NON PAYÉ' 
 const STATUT_COLOR = { paye: '#22c55e', partiel: '#f59e0b', non_paye: '#ef4444' };
 const MODE_MAP     = { cash: 'Cash', orange_money: 'Orange Money', wave: 'Wave', mixte: 'Paiement mixte' };
 
-export default function ReceiptModal({ facture, onClose, devise }) {
+export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsApp }) {
   const [params, setParams] = React.useState(null);
   const [voyages, setVoyages] = React.useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +18,7 @@ export default function ReceiptModal({ facture, onClose, devise }) {
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const { toast } = useApp();
   const printRef = useRef();
+  const autoSentRef = useRef(false);
 
   React.useEffect(() => {
     const load = async () => {
@@ -32,6 +33,16 @@ export default function ReceiptModal({ facture, onClose, devise }) {
     };
     load();
   }, []);
+
+  React.useEffect(() => {
+    if (autoSendWhatsApp && !loading && !autoSentRef.current) {
+      autoSentRef.current = true;
+      const timer = setTimeout(() => {
+        handleWhatsAppDirect();
+      }, 800); // Wait 800ms for DOM and images to fully render before PDF generation
+      return () => clearTimeout(timer);
+    }
+  }, [autoSendWhatsApp, loading]);
 
   if (loading) {
     return (

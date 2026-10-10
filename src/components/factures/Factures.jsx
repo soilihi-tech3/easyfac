@@ -50,6 +50,7 @@ export default function Factures() {
   const [showModal, setShowModal] = useState(false);
   const [editFacture, setEditFacture] = useState(null);
   const [viewFacture, setViewFacture] = useState(null);
+  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [paymentFacture, setPaymentFacture] = useState(null);
   const [newRemaining, setNewRemaining] = useState('');
@@ -236,40 +237,25 @@ export default function Factures() {
       if (editFacture) {
         await updateFacture(editFacture.id, data);
         toast('Facture modifiée');
+        setShowModal(false);
+        load();
       } else {
         const created = await addFacture(data);
         toast('Facture créée avec succès');
 
-        // Automatic WhatsApp notification if phone is present
+        // Instead of sending a text message, we open the ReceiptModal and let it auto-send the PDF
         let phone = data.expediteur?.telephone || data.destinataire?.telephone || '';
         phone = phone.replace(/\D/g, '');
+        
+        setShowModal(false);
+        setViewFacture(created);
         if (phone) {
-          const lines = [
-            `*Nouvelle Facture — ${data.numero}*`,
-            `Bonjour ${data.expediteur?.prenom || ''} ${data.expediteur?.nom || ''},`,
-            `Votre facture *${data.numero}* a été enregistrée avec succès.`,
-            `*Montant Total :* ${formatCurrency(data.montantTotal, devise)}`,
-            `*Montant Payé :* ${formatCurrency(data.montantPaye, devise)}`,
-            (data.montantTotal - data.montantPaye > 0) ? `*Reste à Payer :* ${formatCurrency(data.montantTotal - data.montantPaye, devise)}` : '',
-            ``,
-            `Merci de votre confiance !\n*${entreprise?.nom || 'EASYFAC'}*`
-          ].filter(Boolean).join('\n');
-
-          const token = localStorage.getItem('token');
-          fetch(`${API_URL}/api/whatsapp/send-message`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ phone, message: lines })
-          }).then(res => {
-            if (res.ok) toast('Notification WhatsApp envoyée au client !', 'success');
-          }).catch(e => console.warn('Auto WhatsApp notice silent error:', e));
+          setAutoSendWhatsApp(true);
+        } else {
+          setAutoSendWhatsApp(false);
         }
+        load();
       }
-      setShowModal(false);
-      load();
     } catch (err) {
       toast('Erreur d\'enregistrement', 'error');
     }
@@ -781,8 +767,12 @@ export default function Factures() {
       {viewFacture && (
         <ReceiptModal
           facture={viewFacture}
-          onClose={() => setViewFacture(null)}
+          onClose={() => {
+            setViewFacture(null);
+            setAutoSendWhatsApp(false);
+          }}
           devise={devise}
+          autoSendWhatsApp={autoSendWhatsApp}
         />
       )}
 

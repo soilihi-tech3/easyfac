@@ -10,6 +10,24 @@ if (fs.existsSync(projectCacheDir)) {
   process.env.PUPPETEER_CACHE_DIR = projectCacheDir;
 }
 
+const formatPhoneForWhatsApp = (phone) => {
+  let clean = String(phone || '').replace(/\D/g, '');
+  if (!clean) return '';
+  // Sénégal: 9 digits starting with 7 (ex: 773981156) -> 221773981156
+  if (clean.length === 9 && clean.startsWith('7')) {
+    clean = '221' + clean;
+  }
+  // Comores: 7 digits (ex: 3348155, 4784155, 7745658) -> 269 + clean
+  else if (clean.length === 7) {
+    clean = '269' + clean;
+  }
+  // France: 9 digits starting with 6 or 7 -> 33 + clean
+  else if (clean.length === 9 && (clean.startsWith('6') || clean.startsWith('7'))) {
+    clean = '33' + clean;
+  }
+  return clean;
+};
+
 class WhatsAppManager {
   constructor() {
     this.clients = new Map(); // boutiqueId => ClientData
@@ -20,9 +38,14 @@ class WhatsAppManager {
   async getClientData(boutiqueId) {
     if (!boutiqueId) throw new Error("boutiqueId est requis");
     
-    // 1. Si le client existe déjà, le retourner immédiatement
+    // 1. Si le client existe déjà et est en cours d'utilisation valide
     if (this.clients.has(boutiqueId)) {
-      return this.clients.get(boutiqueId);
+      const existing = this.clients.get(boutiqueId);
+      // Si l'état est dans un état d'erreur ou déconnecté, le purger pour relancer
+      if (existing.status !== 'ERROR' && existing.status !== 'DISCONNECTED' && existing.status !== 'AUTH_FAILURE') {
+        return existing;
+      }
+      this.clients.delete(boutiqueId);
     }
 
     // 2. Si une initialisation est déjà en cours pour cette boutique, attendre qu'elle termine
@@ -34,13 +57,21 @@ class WhatsAppManager {
     const initPromise = (async () => {
       try {
         // Nettoyer les verrous Puppeteer potentiels pour cette boutique
-        const lockPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}/SingletonLock`);
-        if (fs.existsSync(lockPath)) {
-          try {
-            fs.unlinkSync(lockPath);
-            console.log(`Cleaned up lingering WhatsApp Puppeteer SingletonLock for boutique ${boutiqueId}`);
-          } catch (err) {
-            console.error(`Could not clean up SingletonLock for ${boutiqueId}:`, err.message);
+        const sessionFolder = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+        const filesToClean = [
+          path.join(sessionFolder, 'SingletonLock'),
+          path.join(sessionFolder, 'SingletonCookie'),
+          path.join(sessionFolder, 'SingletonSocket'),
+          path.join(sessionFolder, 'DevToolsActivePort')
+        ];
+        for (const f of filesToClean) {
+          if (fs.existsSync(f)) {
+            try {
+              fs.unlinkSync(f);
+              console.log(`Cleaned up lingering lock file (${path.basename(f)}) for boutique ${boutiqueId}`);
+            } catch (err) {
+              console.warn(`Could not clean up lock ${f}:`, err.message);
+            }
           }
         }
 
@@ -317,21 +348,38 @@ class WhatsAppManager {
 
   async logout(boutiqueId) {
     if (!boutiqueId) return;
+    this.initPromises.delete(boutiqueId);
     const clientData = this.clients.get(boutiqueId);
-    if (clientData) {
+    if (clientData && clientData.client) {
       try {
-        await clientData.client.destroy();
+        if (clientData.client.pupBrowser) {
+          await clientData.client.pupBrowser.close().catch(() => {});
+        }
+        await clientData.client.destroy().catch(() => {});
       } catch (e) {
         console.error('Error destroying client:', e);
       }
       this.clients.delete(boutiqueId);
-      
-      const authPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
-      if (fs.existsSync(authPath)) {
-        try {
-          fs.rmSync(authPath, { recursive: true, force: true });
-        } catch (e) {
-          console.error('Error removing auth folder:', e);
+    }
+    
+    const authPath = path.join(__dirname, `../.wwebjs_auth/session-${boutiqueId}`);
+    if (fs.existsSync(authPath)) {
+      try {
+        fs.rmSync(authPath, { recursive: true, force: true });
+        console.log(`Completely removed session folder for ${boutiqueId} to prevent locked instances`);
+      } catch (err) {
+        console.warn(`Could not completely remove session folder ${authPath}:`, err.message);
+        // Fallback to lock files removal if full directory removal fails due to OS locks
+        const lockFiles = [
+          path.join(authPath, 'SingletonLock'),
+          path.join(authPath, 'SingletonCookie'),
+          path.join(authPath, 'SingletonSocket'),
+          path.join(authPath, 'DevToolsActivePort')
+        ];
+        for (const lf of lockFiles) {
+          if (fs.existsSync(lf)) {
+            try { fs.unlinkSync(lf); } catch (e) {}
+          }
         }
       }
     }
@@ -380,24 +428,6 @@ class WhatsAppManager {
     }
   }
 
-const formatPhoneForWhatsApp = (phone) => {
-  let clean = String(phone || '').replace(/\D/g, '');
-  if (!clean) return '';
-  // Sénégal: 9 digits starting with 7 (ex: 773981156) -> 221773981156
-  if (clean.length === 9 && clean.startsWith('7')) {
-    clean = '221' + clean;
-  }
-  // Comores: 7 digits (ex: 3348155, 4784155, 7745658) -> 269 + clean
-  else if (clean.length === 7) {
-    clean = '269' + clean;
-  }
-  // France: 9 digits starting with 6 or 7 -> 33 + clean
-  else if (clean.length === 9 && (clean.startsWith('6') || clean.startsWith('7'))) {
-    clean = '33' + clean;
-  }
-  return clean;
-};
-
   async sendText(boutiqueId, phone, message) {
     const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
@@ -418,10 +448,10 @@ const formatPhoneForWhatsApp = (phone) => {
     await clientData.client.sendMessage(chatId, message);
   }
 
-  async sendPdf(boutiqueId, phone, pdfBuffer, filename, caption = '') {
+  async sendMedia(boutiqueId, phone, fileBuffer, mimetype, filename, caption = '') {
     const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
-      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique. Veuillez connecter votre WhatsApp dans les Paramètres.");
+      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique. Veuillez scanner/connecter WhatsApp dans les Paramètres.");
     }
     const cleanPhone = formatPhoneForWhatsApp(phone);
     if (!cleanPhone) throw new Error("Numéro de téléphone invalide.");
@@ -435,14 +465,38 @@ const formatPhoneForWhatsApp = (phone) => {
     } catch (e) {
       console.warn("getNumberId warning:", e.message);
     }
+
+    // Ensure chat object is instantiated in WhatsApp Web Store before sending media
+    try {
+      await clientData.client.getChatById(chatId);
+    } catch (e) {
+      console.warn("getChatById warning:", e.message);
+    }
+
+    const mediaMime = mimetype || (filename?.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+    const media = new MessageMedia(mediaMime, fileBuffer.toString('base64'), filename || 'facture.jpg');
     
-    const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename || 'facture.pdf');
-    
-    // Send exact PDF document file to client's WhatsApp
-    await clientData.client.sendMessage(chatId, media, { 
-      caption: caption || 'Bonjour, voici votre facture en pièce jointe PDF.',
-      sendMediaAsDocument: true 
-    });
+    // Always send as document to bypass the "Data passed to getter must include an id property" 
+    // image-processing bug in the latest whatsapp-web.js and WhatsApp Web versions.
+    const options = { sendMediaAsDocument: true };
+
+    try {
+      await clientData.client.sendMessage(chatId, media, options);
+    } catch (err) {
+      console.warn("Retrying media send after chat initialization...", err.message);
+      try {
+        // Wait a moment in case it was a connection hiccup
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await clientData.client.sendMessage(chatId, media, options);
+      } catch (retryErr) {
+        console.error("WhatsApp Media Retry Error:", retryErr.message);
+        throw retryErr;
+      }
+    }
+  }
+
+  async sendPdf(boutiqueId, phone, pdfBuffer, filename, caption = '') {
+    return this.sendMedia(boutiqueId, phone, pdfBuffer, 'application/pdf', filename, caption);
   }
 
   async destroyAll() {

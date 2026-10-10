@@ -4,6 +4,7 @@ import { getParametres, getVoyages, formatCurrency, formatDate, deleteFacture, c
 import { Printer, MessageCircle, X, Bell, FileText, Send, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 
 const STATUT_MAP   = { paye: 'PAYÉ', partiel: 'PARTIEL', non_paye: 'NON PAYÉ' };
 const STATUT_COLOR = { paye: '#22c55e', partiel: '#f59e0b', non_paye: '#ef4444' };
@@ -154,17 +155,21 @@ export default function ReceiptModal({ facture, onClose, devise }) {
     setSendingWhatsapp(true);
     try {
       const element = printRef.current;
+      
       const opt = {
-        margin:       [0, 0],
+        margin:       0,
         filename:     `Facture_${facture.numero}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false },
-        jsPDF:        { unit: 'pt', format: 'a4', orientation: 'portrait' }
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
       };
 
-      // Generate PDF as a blob
       const pdfBlob = await html2pdf().set(opt).from(element).output('blob');
-      
+
+      if (!pdfBlob) {
+        throw new Error("Impossible de générer le PDF du reçu.");
+      }
+
       const formData = new FormData();
       formData.append('pdf', pdfBlob, `Facture_${facture.numero}.pdf`);
       formData.append('phone', phone);
@@ -181,9 +186,9 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur lors de l\'envoi');
       
-      toast('Facture envoyée avec succès sur WhatsApp !');
+      toast('Reçu envoyé directement en image/photo sur WhatsApp avec succès !', 'success');
     } catch (err) {
-      console.error(err);
+      console.error('WhatsApp direct error:', err);
       const msg = err.message || '';
       if (msg.includes("n'est pas connecté") || msg.includes("Veuillez scanner")) {
         toast("WhatsApp non connecté dans les Paramètres. Ouverture via WhatsApp...", "warning");

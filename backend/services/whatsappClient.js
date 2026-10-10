@@ -380,12 +380,32 @@ class WhatsAppManager {
     }
   }
 
+const formatPhoneForWhatsApp = (phone) => {
+  let clean = String(phone || '').replace(/\D/g, '');
+  if (!clean) return '';
+  // Sénégal: 9 digits starting with 7 (ex: 773981156) -> 221773981156
+  if (clean.length === 9 && clean.startsWith('7')) {
+    clean = '221' + clean;
+  }
+  // Comores: 7 digits (ex: 3348155, 4784155, 7745658) -> 269 + clean
+  else if (clean.length === 7) {
+    clean = '269' + clean;
+  }
+  // France: 9 digits starting with 6 or 7 -> 33 + clean
+  else if (clean.length === 9 && (clean.startsWith('6') || clean.startsWith('7'))) {
+    clean = '33' + clean;
+  }
+  return clean;
+};
+
   async sendText(boutiqueId, phone, message) {
     const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
       throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanPhone = formatPhoneForWhatsApp(phone);
+    if (!cleanPhone) throw new Error("Numéro de téléphone invalide");
+
     let chatId = `${cleanPhone}@c.us`;
     try {
       const numberId = await clientData.client.getNumberId(cleanPhone);
@@ -401,9 +421,11 @@ class WhatsAppManager {
   async sendPdf(boutiqueId, phone, pdfBuffer, filename, caption = '') {
     const clientData = await this.getClientData(boutiqueId);
     if (clientData.status !== 'CONNECTED') {
-      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
+      throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique. Veuillez connecter votre WhatsApp dans les Paramètres.");
     }
-    const cleanPhone = phone.replace(/\D/g, '');
+    const cleanPhone = formatPhoneForWhatsApp(phone);
+    if (!cleanPhone) throw new Error("Numéro de téléphone invalide.");
+
     let chatId = `${cleanPhone}@c.us`;
     try {
       const numberId = await clientData.client.getNumberId(cleanPhone);
@@ -414,17 +436,13 @@ class WhatsAppManager {
       console.warn("getNumberId warning:", e.message);
     }
     
-    const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename);
-    try {
-      await clientData.client.sendMessage(chatId, media, { 
-        caption,
-        sendMediaAsDocument: true 
-      });
-    } catch (err) {
-      console.error("WhatsApp Media Send Warning, fallback to text notification:", err.message);
-      const fallbackText = `${caption ? caption + '\n\n' : ''}📄 *Votre reçu de facture (${filename}) est disponible.*`;
-      await clientData.client.sendMessage(chatId, fallbackText);
-    }
+    const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename || 'facture.pdf');
+    
+    // Send exact PDF document file to client's WhatsApp
+    await clientData.client.sendMessage(chatId, media, { 
+      caption: caption || 'Bonjour, voici votre facture en pièce jointe PDF.',
+      sendMediaAsDocument: true 
+    });
   }
 
   async destroyAll() {

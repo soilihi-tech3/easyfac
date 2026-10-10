@@ -94,9 +94,33 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const computeLocalStats = (factures, depenses, clients) => {
-    const totalCA = factures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
-    const totalPaye = factures.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+  const computeLocalStats = (factures, depenses, clients, employeeId = null) => {
+    const totalCA = factures.reduce((s, f) => {
+      if (employeeId) {
+        const isCreator = f.userId === employeeId || f.creeParId === employeeId || f.creePar?.id === employeeId;
+        const empCollected = (f.paiements || []).filter(p => p.userId === employeeId).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+        if (isCreator) {
+          return s + Number(f.montantTotal || 0);
+        } else {
+          return s + empCollected;
+        }
+      }
+      return s + Number(f.montantTotal || 0);
+    }, 0);
+    
+    // Compute cash collected by employee or total paid
+    const totalPaye = factures.reduce((s, f) => {
+      if (employeeId) {
+        if (f.paiements && f.paiements.length > 0) {
+          const empPay = f.paiements.filter(p => p.userId === employeeId).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+          return s + empPay;
+        }
+        const isCreator = f.userId === employeeId || f.creeParId === employeeId || f.creePar?.id === employeeId;
+        return s + (isCreator ? Number(f.montantPaye || 0) : 0);
+      }
+      return s + Number(f.montantPaye || 0);
+    }, 0);
+
     const totalResteAPayer = totalCA - totalPaye;
     const totalDepenses = depenses.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
     const beneficeNet = totalPaye - totalDepenses;
@@ -117,8 +141,19 @@ export default function Dashboard() {
       const d = new Date(f.createdAt);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (monthly[key]) {
-        monthly[key].ca += Number(f.montantTotal || 0);
-        monthly[key].paye += Number(f.montantPaye || 0);
+        if (employeeId) {
+          const isCreator = f.userId === employeeId || f.creeParId === employeeId || f.creePar?.id === employeeId;
+          const empPay = (f.paiements || []).filter(p => p.userId === employeeId).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+          monthly[key].ca += isCreator ? Number(f.montantTotal || 0) : empPay;
+          if (f.paiements && f.paiements.length > 0) {
+            monthly[key].paye += empPay;
+          } else {
+            monthly[key].paye += isCreator ? Number(f.montantPaye || 0) : 0;
+          }
+        } else {
+          monthly[key].ca += Number(f.montantTotal || 0);
+          monthly[key].paye += Number(f.montantPaye || 0);
+        }
       }
     });
 
@@ -144,17 +179,21 @@ export default function Dashboard() {
         ]);
 
         const employeeVoyages = user?.role === 'employee'
-          ? voyages.filter(v => v.id === user.voyageId)
+          ? (user.voyageId && user.voyageId !== 'all' ? voyages.filter(v => v.id === user.voyageId) : voyages)
           : voyages;
 
         const voyageStats = employeeVoyages.map(v => {
-          const facs = allFac.filter(f => f.voyageId === v.id);
+          const facs = user?.role === 'employee' 
+            ? allFac.filter(f => f.voyageId === v.id && (f.userId === user.id || f.creeParId === user.id || f.creePar?.id === user.id))
+            : allFac.filter(f => f.voyageId === v.id);
           const ca = facs.reduce((sum, f) => sum + Number(f.montantTotal || 0), 0);
           const paye = facs.reduce((sum, f) => sum + Number(f.montantPaye || 0), 0);
           
-          const deps = allDeps.filter(d => d.voyageId === v.id);
+          const deps = user?.role === 'employee'
+            ? allDeps.filter(d => d.voyageId === v.id && (d.userId === user.id || d.creeParId === user.id || d.creePar?.id === user.id))
+            : allDeps.filter(d => d.voyageId === v.id);
           const expenses = deps.reduce((sum, d) => sum + (Number(d.montant) * Number(d.quantite || 1)), 0);
-          const profit = ca - expenses;
+          const profit = paye - expenses;
           
           return {
             name: v.nom,
@@ -177,11 +216,15 @@ export default function Dashboard() {
         setTop3Worst(worst);
 
         if (user?.role === 'employee') {
-          // Employee dashboard restricted: only their own invoices, clients, expenses
-          const employeeFac = allFac.filter(f => f.userId === user.id);
-          const employeeDeps = allDeps.filter(d => d.userId === user.id);
+          // Employee dashboard includes invoices created by the employee AND invoices where the employee collected payment
+          const employeeFac = allFac.filter(f => {
+            const isCreator = f.userId === user.id || f.creeParId === user.id || f.creePar?.id === user.id;
+            const hasCollectedPayment = f.paiements && f.paiements.some(p => p.userId === user.id);
+            return isCreator || hasCollectedPayment;
+          });
+          const employeeDeps = allDeps.filter(d => d.userId === user.id || d.creeParId === user.id || d.creePar?.id === user.id);
           
-          // Get unique clients from their invoices
+          // Get unique clients from their own invoices
           const clientIds = new Set();
           employeeFac.forEach(f => {
             if (f.expediteurId) clientIds.add(f.expediteurId);
@@ -189,11 +232,20 @@ export default function Dashboard() {
           });
           const employeeClients = clients.filter(c => clientIds.has(c.id));
 
-          const localStats = computeLocalStats(employeeFac, employeeDeps, clients);
-          localStats.totalVoyages = employeeVoyages.length;
+          // Get employee voyages count
+          const assignedVoyageIds = new Set(employeeFac.map(f => f.voyageId).filter(Boolean));
+          if (user.voyageId && user.voyageId !== 'all') {
+            assignedVoyageIds.add(user.voyageId);
+          }
+          const employeeVoyageList = (user.voyageId === 'all' || !user.voyageId)
+            ? voyages.filter(v => assignedVoyageIds.has(v.id))
+            : voyages.filter(v => v.id === user.voyageId);
+
+          const localStats = computeLocalStats(employeeFac, employeeDeps, employeeClients, user.id);
+          localStats.totalVoyages = employeeVoyageList.length;
           setStats(localStats);
 
-          const factures = [...employeeFac]
+          const factures = [...allFac]
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
             .slice(0, 6);
           setRecentFactures(factures);

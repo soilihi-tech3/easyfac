@@ -3,8 +3,9 @@ import { getDepenses, addDepense, updateDepense, deleteDepense, getVoyages, getP
 import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import { TrendingDown, Plus, Edit2, Trash2, X, Check, AlertCircle, Search } from 'lucide-react';
+import { TrendingDown, Plus, Edit2, Trash2, X, Check, AlertCircle, Search, CreditCard, FileText, Calculator } from 'lucide-react';
 import Pagination from '../common/Pagination';
+import { TableSkeleton } from '../common/Skeleton';
 
 const emptyForm = { nom: '', quantite: 1, montant: '', voyageId: '' };
 
@@ -38,11 +39,17 @@ export default function Depenses() {
     if (isFirstLoad && !hasCache) setLoading(true);
     try {
       const [allDepenses, allVoyages, params] = await Promise.all([
-        getDepenses(), 
+        getDepenses(),
         getVoyages(),
         getParametres()
       ]);
       let d = allDepenses.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      // Employee restriction: Employees can only view their own created expenses
+      if (user?.role === 'employee') {
+        d = d.filter(x => x.userId === user.id);
+      }
+
       if (search) {
         const s = search.toLowerCase();
         d = d.filter(x => x.nom?.toLowerCase().includes(s));
@@ -66,13 +73,13 @@ export default function Depenses() {
 
   useEffect(() => { load(); }, [filterVoyage, search, filterMois, filterAnnee, refresh]);
 
-  const openAdd  = () => { 
-    setForm({ 
-      ...emptyForm, 
-      voyageId: defaultVoyageId || filterVoyage || (voyages.length > 0 ? voyages[0].id : '') 
-    }); 
-    setEditDep(null); 
-    setShowModal(true); 
+  const openAdd = () => {
+    setForm({
+      ...emptyForm,
+      voyageId: defaultVoyageId || filterVoyage || (voyages.length > 0 ? voyages[0].id : '')
+    });
+    setEditDep(null);
+    setShowModal(true);
   };
   const openEdit = (d) => { setForm({ nom: d.nom, quantite: d.quantite, montant: d.montant, voyageId: d.voyageId || '' }); setEditDep(d); setShowModal(true); };
 
@@ -100,7 +107,16 @@ export default function Depenses() {
     }
   };
 
-  const getVoyageName = (id) => voyages.find(v => v.id === id)?.nom || '—';
+  const formatVoyageLabel = (v) => {
+    if (!v) return '';
+    const dateStr = v.dateDepart ? formatDate(v.dateDepart) : '';
+    return dateStr ? `${v.nom} (${dateStr})` : v.nom;
+  };
+
+  const getVoyageName = (id) => {
+    const v = voyages.find(item => item.id === id);
+    return v ? formatVoyageLabel(v) : '—';
+  };
   const totalDepenses = depenses.reduce((s, d) => s + (d.montant * (d.quantite || 1)), 0);
 
   const isAdmin = user?.role === 'admin';
@@ -129,19 +145,40 @@ export default function Depenses() {
     <div className="page-enter page-with-table">
       <div className="sticky-top-section">
         <div className="page-header">
-        <div>
-          <h1 className="page-title">Dépenses</h1>
-          <p className="page-subtitle">
-            {depenses.length} dépense{depenses.length > 1 ? 's' : ''} —{' '}
-            Total: <strong style={{ color: 'var(--danger)' }}>{formatCurrency(totalDepenses, devise)}</strong>
-          </p>
+          <div>
+            <h1 className="page-title">Dépenses</h1>
+            <p className="page-subtitle">Pilotez les dépenses opérationnelles et suivez les sorties d'argent.</p>
+          </div>
+          {(isAdmin || permissions.creerDepense) && (
+            <button className="btn btn-primary" onClick={openAdd}>
+              <Plus size={16} /> Ajouter une dépense
+            </button>
+          )}
         </div>
-        {(isAdmin || permissions.creerDepense) && (
-          <button className="btn btn-primary" onClick={openAdd}>
-            <Plus size={16} /> Ajouter une dépense
-          </button>
-        )}
       </div>
+
+      {/* KPI Cards Grid */}
+      <div className="kpi-grid cols-3" style={{ marginBottom: 24 }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <TrendingDown size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(totalDepenses, devise)}</div>
+            <div className="kpi-label">Total des dépenses</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--info)', '--kpi-bg': 'var(--info-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <CreditCard size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{depenses.length}</div>
+            <div className="kpi-label">Nombre de dépenses</div>
+          </div>
+        </div>
+
       </div>
 
       {/* Filters */}
@@ -153,7 +190,7 @@ export default function Depenses() {
           </div>
           <select className="form-input form-select" style={{ flex: '1 1 180px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
             <option value="">Tous les voyages</option>
-            {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+            {voyages.map(v => <option key={v.id} value={v.id}>{formatVoyageLabel(v)}</option>)}
           </select>
           <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
             <option value="">Tous les mois</option>
@@ -197,7 +234,7 @@ export default function Depenses() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
+                <TableSkeleton rows={5} cols={8} />
               ) : (() => {
                 const paginatedDepenses = depenses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -295,7 +332,7 @@ export default function Depenses() {
                 <label className="form-label">Voyage associé</label>
                 <select className="form-input form-select" value={form.voyageId} onChange={e => setForm(f => ({ ...f, voyageId: e.target.value }))} disabled={user?.role === 'employee' || !!defaultVoyageId}>
                   <option value="">Aucun voyage</option>
-                  {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+                  {voyages.map(v => <option key={v.id} value={v.id}>{formatVoyageLabel(v)}</option>)}
                 </select>
               </div>
               {form.montant && form.quantite && (

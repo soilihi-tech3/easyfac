@@ -420,6 +420,10 @@ export default function Remboursements() {
 
   // Filtered List
   const filteredRemboursements = remboursements.filter(r => {
+    // Employee restriction: Employees can only view their own refunds
+    if (user?.role === 'employee' && r.creeParId !== user.id && r.userId !== user.id) {
+      return false;
+    }
     const s = search.toLowerCase();
     const matchSearch = !search || (
       r.numeroFacture?.toLowerCase().includes(s) ||

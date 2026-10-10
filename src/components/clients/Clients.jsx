@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { getClients, addClient, updateClient, deleteClient, getFactures, formatCurrency, getClientsCache, getFacturesCache } from '../../data/store';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import { Users, Search, Plus, Edit2, Trash2, Phone, MapPin, X, Check } from 'lucide-react';
+import { Users, Search, Plus, Edit2, Trash2, Phone, MapPin, X, Check, TrendingUp, FileText } from 'lucide-react';
 import Pagination from '../common/Pagination';
+import { TableSkeleton } from '../common/Skeleton';
 
 const extractPhoneParts = (phone) => {
   if (!phone) return { prefix: '+221', number: '' };
@@ -97,6 +98,13 @@ export default function Clients() {
     return { nb: facs.length, ca: facs.reduce((s, f) => s + Number(f.montantTotal || 0), 0) };
   };
 
+  const globalClientStats = clients.reduce((acc, c) => {
+    const stats = getClientStats(c.id);
+    acc.totalCA += stats.ca;
+    acc.totalFactures += stats.nb;
+    return acc;
+  }, { totalCA: 0, totalFactures: 0 });
+
   const filteredClients = clients.filter(c => {
     if (!search) return true;
     const lower = search.toLowerCase();
@@ -122,7 +130,7 @@ export default function Clients() {
           <div>
             <h1 className="page-title">Clients</h1>
             <p className="page-subtitle">
-              {clients.length} client{clients.length > 1 ? 's' : ''} enregistré{clients.length > 1 ? 's' : ''}
+              Gérez votre carnet de clients, expéditeurs et destinataires.
             </p>
           </div>
           {(isAdmin || permissions.creerClient) && (
@@ -130,6 +138,39 @@ export default function Clients() {
               <Plus size={16} /> Nouveau client
             </button>
           )}
+        </div>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="kpi-grid cols-3" style={{ marginBottom: 24 }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--brand)', '--kpi-bg': 'var(--brand-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <Users size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{clients.length}</div>
+            <div className="kpi-label">Total clients</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <TrendingUp size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(globalClientStats.totalCA, devise)}</div>
+            <div className="kpi-label">CA total généré</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--purple)', '--kpi-bg': 'var(--purple-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <FileText size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{globalClientStats.totalFactures}</div>
+            <div className="kpi-label">Total factures clients</div>
+          </div>
         </div>
       </div>
 
@@ -161,7 +202,7 @@ export default function Clients() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
+                <TableSkeleton rows={5} cols={6} />
               ) : (() => {
                 const filteredClients = clients.filter(c =>
                   `${c.nom} ${c.prenom} ${c.telephone} ${c.adresse || ''}`.toLowerCase().includes(search.toLowerCase())

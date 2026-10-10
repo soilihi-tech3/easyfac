@@ -85,8 +85,46 @@ app.get('/api/status', async (req, res) => {
       await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
     } catch (e) {}
     try {
+      await pool.query('ALTER TABLE users ADD COLUMN lastLoginAt DATETIME DEFAULT NULL');
+    } catch (e) {}
+    try {
+      await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
+    } catch (e) {}
+    try {
       await pool.query('ALTER TABLE factures ADD COLUMN rappelAutomatiqueSent TINYINT DEFAULT 0');
     } catch (e) {}
+    try {
+      await pool.query("ALTER TABLE factures ADD COLUMN recuperation VARCHAR(50) DEFAULT 'non_recupere'");
+    } catch (e) {}
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_activity_logs (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          userId VARCHAR(255) NOT NULL,
+          type ENUM('LOGIN', 'LOGOUT', 'SESSION_RESTORE', 'ACTION') NOT NULL,
+          description VARCHAR(255) NOT NULL,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_user_id (userId)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    } catch (e) {
+      console.warn('Error creating user_activity_logs:', e.message);
+    }
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS facture_paiements (
+          id VARCHAR(255) PRIMARY KEY,
+          factureId VARCHAR(255) NOT NULL,
+          userId VARCHAR(255) NOT NULL,
+          montant DECIMAL(15, 2) NOT NULL,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_facture_id (factureId),
+          INDEX idx_user_id (userId)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    } catch (e) {
+      console.warn('Error creating facture_paiements:', e.message);
+    }
     // Ensure default users exist
     const seedUser = async (nom, prenom, email, password, role, permissions = null) => {
       const [existing] = await pool.query('SELECT COUNT(*) as count FROM users WHERE email = ?', [email]);
@@ -117,6 +155,36 @@ app.get('/api/status', async (req, res) => {
   }
 });
 
+// Helper to record activity log
+const recordUserLog = async (userId, type, description) => {
+  if (!userId) return;
+  try {
+    await pool.query(
+      'INSERT INTO user_activity_logs (userId, type, description, createdAt) VALUES (?, ?, ?, ?)',
+      [userId, type, description, new Date()]
+    );
+  } catch (err) {
+    if (err.message && err.message.includes("user_activity_logs")) {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS user_activity_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            userId VARCHAR(255) NOT NULL,
+            type ENUM('LOGIN', 'LOGOUT', 'SESSION_RESTORE', 'ACTION') NOT NULL,
+            description VARCHAR(255) NOT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user_id (userId)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        `);
+        await pool.query(
+          'INSERT INTO user_activity_logs (userId, type, description, createdAt) VALUES (?, ?, ?, ?)',
+          [userId, type, description, new Date()]
+        );
+      } catch (e) {}
+    }
+  }
+};
+
 // --- AUTH & USERS ---
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -137,7 +205,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (user.boutique_id) {
       const [boutique] = await pool.query('SELECT * FROM boutiques WHERE id = ?', [user.boutique_id]);
       if (boutique.length > 0 && boutique[0].statut === 'inactif') {
-        return res.status(403).json({ error: "Votre boutique a été désactivée par le Super Admin." });
+        return res.status(403).json({ error: "Votre espace plateforme est actuellement en maintenance. Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
       }
     }
 
@@ -147,6 +215,24 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
     
+    // Update lastLoginAt timestamp (auto-add column if database schema is not migrated)
+    const now = new Date();
+    try {
+      await pool.query('UPDATE users SET lastLoginAt = ? WHERE id = ?', [now, user.id]);
+      user.lastLoginAt = now;
+    } catch (err) {
+      try {
+        await pool.query('ALTER TABLE users ADD COLUMN lastLoginAt DATETIME DEFAULT NULL');
+        await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
+        await pool.query('UPDATE users SET lastLoginAt = ? WHERE id = ?', [now, user.id]);
+        user.lastLoginAt = now;
+      } catch (e) {
+        console.warn('Could not update lastLoginAt:', e.message);
+      }
+    }
+
+    await recordUserLog(user.id, 'LOGIN', 'Connexion à l\'application');
+
     const token = jwt.sign({ 
       id: user.id, 
       role: user.role, 
@@ -177,7 +263,7 @@ const authMiddleware = async (req, res, next) => {
     if (decoded.boutique_id) {
       const [boutiques] = await pool.query('SELECT statut FROM boutiques WHERE id = ?', [decoded.boutique_id]);
       if (boutiques.length > 0 && boutiques[0].statut === 'inactif') {
-        return res.status(403).json({ error: "Votre boutique a été désactivée par le Super Admin." });
+        return res.status(403).json({ error: "Votre espace plateforme est actuellement en maintenance. Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
       }
     }
     next();
@@ -187,6 +273,28 @@ const authMiddleware = async (req, res, next) => {
 };
 
 app.use('/api', authMiddleware);
+
+app.post('/api/auth/logout', async (req, res) => {
+  try {
+    if (req.user && req.user.id) {
+      try {
+        await pool.query('UPDATE users SET lastLogoutAt = ? WHERE id = ?', [new Date(), req.user.id]);
+        await recordUserLog(req.user.id, 'LOGOUT', 'Déconnexion de l\'application');
+      } catch (err) {
+        if (err.message && err.message.includes('lastLogoutAt')) {
+          try {
+            await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
+            await pool.query('UPDATE users SET lastLogoutAt = ? WHERE id = ?', [new Date(), req.user.id]);
+            await recordUserLog(req.user.id, 'LOGOUT', 'Déconnexion de l\'application');
+          } catch (e) {}
+        }
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 const whatsappRoutes = require('./routes/whatsapp');
 app.use('/api/whatsapp', whatsappRoutes);
@@ -203,20 +311,61 @@ app.get('/api/auth/me', async (req, res) => {
 });
 
 app.get('/api/users', async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
-    const [rows] = await pool.query(
-      'SELECT id, nom, prenom, email, role, voyageId, permissions, telephone, active, createdAt FROM users WHERE boutique_id = ? ORDER BY createdAt DESC',
-      [req.user.boutique_id]
-    );
+    const boutiqueId = req.user.boutique_id || null;
+    let rows;
+    try {
+      [rows] = await pool.query(
+        'SELECT id, nom, prenom, email, role, voyageId, permissions, telephone, active, lastLoginAt, lastLogoutAt, createdAt FROM users WHERE (boutique_id = ? OR (boutique_id IS NULL AND ? IS NULL)) ORDER BY createdAt DESC',
+        [boutiqueId, boutiqueId]
+      );
+    } catch (err) {
+      if (err.message && (err.message.includes('lastLoginAt') || err.message.includes('lastLogoutAt'))) {
+        try {
+          await pool.query('ALTER TABLE users ADD COLUMN lastLoginAt DATETIME DEFAULT NULL');
+          await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
+        } catch (e) {}
+        [rows] = await pool.query(
+          'SELECT id, nom, prenom, email, role, voyageId, permissions, telephone, active, createdAt FROM users WHERE (boutique_id = ? OR (boutique_id IS NULL AND ? IS NULL)) ORDER BY createdAt DESC',
+          [boutiqueId, boutiqueId]
+        );
+      } else {
+        throw err;
+      }
+    }
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+app.get('/api/users/:id/logs', async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accès refusé' });
+  try {
+    const { id } = req.params;
+    let logs = [];
+    try {
+      const [rows] = await pool.query(
+        'SELECT * FROM user_activity_logs WHERE userId = ? ORDER BY createdAt DESC LIMIT 100',
+        [id]
+      );
+      logs = rows;
+    } catch (err) {
+      if (err.message && err.message.includes("user_activity_logs")) {
+        logs = [];
+      } else {
+        throw err;
+      }
+    }
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/users', async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
     const id = uuidv4();
     const { nom, prenom, email, password, role, voyageId, permissions, telephone, active } = req.body;
@@ -224,9 +373,17 @@ app.post('/api/users', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const permString = permissions ? JSON.stringify(permissions) : null;
     const activeVal = active === undefined ? 1 : (active ? 1 : 0);
+    const boutiqueId = req.user.boutique_id || null;
+
+    // Check if email already exists
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Un utilisateur avec cette adresse email existe déjà.' });
+    }
+
     await pool.query(
       'INSERT INTO users (id, nom, prenom, email, password, role, voyageId, permissions, telephone, active, boutique_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString, telephone || null, activeVal, req.user.boutique_id]
+      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString, telephone || null, activeVal, boutiqueId]
     );
     res.json({ id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
   } catch (error) {
@@ -235,22 +392,24 @@ app.post('/api/users', async (req, res) => {
 });
 
 app.put('/api/users/:id', async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
     const { nom, prenom, email, password, role, voyageId, permissions, telephone, active } = req.body;
     const cleanVoyageId = (voyageId === '' || voyageId === undefined || voyageId === 'null') ? null : voyageId;
     const permString = permissions ? JSON.stringify(permissions) : null;
     const activeVal = active === undefined ? 1 : (active ? 1 : 0);
+    const boutiqueId = req.user.boutique_id || null;
+
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await pool.query(
-        'UPDATE users SET nom=?, prenom=?, email=?, password=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=? AND boutique_id=?',
-        [nom, prenom, email, hash, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id, req.user.boutique_id]
+        'UPDATE users SET nom=?, prenom=?, email=?, password=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=? AND (boutique_id=? OR (boutique_id IS NULL AND ? IS NULL))',
+        [nom, prenom, email, hash, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id, boutiqueId, boutiqueId]
       );
     } else {
       await pool.query(
-        'UPDATE users SET nom=?, prenom=?, email=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=? AND boutique_id=?',
-        [nom, prenom, email, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id, req.user.boutique_id]
+        'UPDATE users SET nom=?, prenom=?, email=?, role=?, voyageId=?, permissions=?, telephone=?, active=? WHERE id=? AND (boutique_id=? OR (boutique_id IS NULL AND ? IS NULL))',
+        [nom, prenom, email, role, cleanVoyageId, permString, telephone || null, activeVal, req.params.id, boutiqueId, boutiqueId]
       );
     }
     res.json({ id: req.params.id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
@@ -260,9 +419,10 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 app.delete('/api/users/:id', async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Accès refusé' });
+  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Accès refusé' });
   try {
-    await pool.query('DELETE FROM users WHERE id = ? AND boutique_id = ?', [req.params.id, req.user.boutique_id]);
+    const boutiqueId = req.user.boutique_id || null;
+    await pool.query('DELETE FROM users WHERE id = ? AND (boutique_id = ? OR (boutique_id IS NULL AND ? IS NULL))', [req.params.id, boutiqueId, boutiqueId]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -967,6 +1127,19 @@ app.get('/api/factures', async (req, res) => {
       articlesMap[a.factureId].push(a);
     });
 
+    // Fetch payments for these factures
+    let paiements = [];
+    try {
+      const [pRows] = await pool.query('SELECT * FROM facture_paiements WHERE factureId IN (?)', [factureIds]);
+      paiements = pRows;
+    } catch (e) {}
+
+    const paiementsMap = {};
+    paiements.forEach(p => {
+      if (!paiementsMap[p.factureId]) paiementsMap[p.factureId] = [];
+      paiementsMap[p.factureId].push(p);
+    });
+
     // Populate factures with clients & creators
     const [clients] = await pool.query('SELECT * FROM clients WHERE boutique_id = ?', [req.user.boutique_id]);
     const clientMap = {};
@@ -979,6 +1152,7 @@ app.get('/api/factures', async (req, res) => {
     const result = factures.map(f => ({
       ...f,
       articles: articlesMap[f.id] || [],
+      paiements: paiementsMap[f.id] || [],
       expediteur: clientMap[f.expediteurId] || null,
       destinataire: clientMap[f.destinataireId] || null,
       creePar: userMap[f.userId] || null
@@ -1036,9 +1210,23 @@ app.post('/api/factures', async (req, res) => {
       }
     }
 
+    // Record initial payment if any
+    const initialPaye = Number(montantPaye || 0);
+    if (initialPaye > 0) {
+      try {
+        await connection.query(
+          'INSERT INTO facture_paiements (id, factureId, userId, montant, createdAt) VALUES (?, ?, ?, ?, ?)',
+          [uuidv4(), id, req.user.id, initialPaye, new Date()]
+        );
+      } catch (e) {}
+    }
+
+    const [pRows] = await connection.query('SELECT * FROM facture_paiements WHERE factureId = ?', [id]);
+    const [aRows] = await connection.query('SELECT * FROM facture_articles WHERE factureId = ?', [id]);
+
     await connection.commit();
     await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
-    res.json({ id, ...req.body, userId: req.user.id });
+    res.json({ id, ...req.body, userId: req.user.id, articles: aRows, paiements: pRows });
   } catch (error) {
     await connection.rollback();
     res.status(500).json({ error: error.message });
@@ -1057,8 +1245,10 @@ app.put('/api/factures/:id', async (req, res) => {
 
     // Verify if existing invoice is already paid
     const [existingFactures] = await connection.query('SELECT statut, montantTotal, montantPaye FROM factures WHERE id = ?', [factureId]);
+    let oldPaye = 0;
     if (existingFactures.length > 0) {
       const ef = existingFactures[0];
+      oldPaye = Number(ef.montantPaye || 0);
       const wasPaid = ef.statut === 'paye' || ef.statut === 'Payée' || (Number(ef.montantPaye) >= Number(ef.montantTotal) && Number(ef.montantTotal) > 0);
       if (wasPaid) {
         await connection.rollback();
@@ -1076,10 +1266,23 @@ app.put('/api/factures/:id', async (req, res) => {
       dateLimite = null;
     }
 
+    const newPaye = Number(montantPaye || 0);
+    const addedPayment = newPaye - oldPaye;
+
     await connection.query(
       'UPDATE factures SET numero = ?, voyageId = ?, expediteurId = ?, destinataireId = ?, poidsTotal = ?, prixKg = ?, fraisFret = ?, montantTotal = ?, montantPaye = ?, modePaiement = ?, statut = ?, dateLimite = ?, payerComores = ?, montantComores = ? WHERE id = ? AND boutique_id = ?',
-      [numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, montantPaye || 0, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, factureId, req.user.boutique_id]
+      [numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, newPaye, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, factureId, req.user.boutique_id]
     );
+
+    // If new payment amount was added during payment update, attribute the added amount to current user
+    if (addedPayment > 0) {
+      try {
+        await connection.query(
+          'INSERT INTO facture_paiements (id, factureId, userId, montant, createdAt) VALUES (?, ?, ?, ?, ?)',
+          [uuidv4(), factureId, req.user.id, addedPayment, new Date()]
+        );
+      } catch (e) {}
+    }
 
     // Replace all articles
     await connection.query('DELETE FROM facture_articles WHERE factureId = ?', [factureId]);
@@ -1092,9 +1295,19 @@ app.put('/api/factures/:id', async (req, res) => {
       }
     }
 
+    const [pRows] = await connection.query('SELECT * FROM facture_paiements WHERE factureId = ?', [factureId]);
+    const [aRows] = await connection.query('SELECT * FROM facture_articles WHERE factureId = ?', [factureId]);
+
     await connection.commit();
     await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
-    res.json({ id: factureId, ...req.body });
+    res.json({
+      id: factureId,
+      ...req.body,
+      montantPaye: newPaye,
+      statut: statut,
+      articles: aRows,
+      paiements: pRows
+    });
   } catch (error) {
     await connection.rollback();
     res.status(500).json({ error: error.message });
@@ -1136,6 +1349,36 @@ app.delete('/api/factures/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     connection.release();
+  }
+});
+
+app.patch('/api/factures/:id/recuperation', async (req, res) => {
+  try {
+    const { recuperation } = req.body;
+    const factureId = req.params.id;
+    const statusVal = recuperation === 'recupere' ? 'recupere' : 'non_recupere';
+
+    try {
+      await pool.query(
+        'UPDATE factures SET recuperation = ? WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)',
+        [statusVal, factureId, req.user.boutique_id]
+      );
+    } catch (err) {
+      if (err.message && err.message.includes('recuperation')) {
+        await pool.query("ALTER TABLE factures ADD COLUMN recuperation VARCHAR(50) DEFAULT 'non_recupere'");
+        await pool.query(
+          'UPDATE factures SET recuperation = ? WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)',
+          [statusVal, factureId, req.user.boutique_id]
+        );
+      } else {
+        throw err;
+      }
+    }
+
+    await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
+    res.json({ success: true, recuperation: statusVal });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

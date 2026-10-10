@@ -491,6 +491,24 @@ export const addFacture = async (data) => {
   return convertFactureToView(res);
 };
 
+export const toggleFactureRecuperation = async (id, statusVal) => {
+  const payload = { recuperation: statusVal };
+  const list = getLocalCache('factures');
+  const idx = list.findIndex(f => f.id === id);
+  if (idx !== -1) {
+    list[idx] = { ...list[idx], recuperation: statusVal };
+    setLocalCache('factures', list);
+  }
+
+  if (!isOnline()) {
+    pushToSyncQueue({ method: 'PATCH', url: `/api/factures/${id}/recuperation`, body: payload });
+    return { success: true, recuperation: statusVal };
+  }
+
+  const res = await apiCall(`/api/factures/${id}/recuperation`, 'PATCH', payload);
+  return res;
+};
+
 export const updateFacture = async (id, data) => {
   const baseData = convertFactureToBase(data);
   const processedData = await processFactureClients(baseData);

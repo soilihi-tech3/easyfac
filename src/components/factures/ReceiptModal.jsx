@@ -383,6 +383,12 @@ export default function ReceiptModal({ facture, onClose, devise }) {
                   <span style={{ fontWeight: 800, color: statColor }}>{STATUT_MAP[facture.statut]}</span>
                 </div>
                 <div style={{ marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700 }}>RÉCUPÉRATION COLIS: </span>
+                  <span style={{ fontWeight: 800, color: facture.recuperation === 'recupere' ? '#22c55e' : '#f59e0b' }}>
+                    {facture.recuperation === 'recupere' ? 'RÉCUPÉRÉ' : 'NON RÉCUPÉRÉ'}
+                  </span>
+                </div>
+                <div style={{ marginBottom: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700 }}>MODE PAIEMENT: </span>
                   <span style={{ fontWeight: 600 }}>{MODE_MAP[facture.modePaiement] || 'Cash'}</span>
                 </div>

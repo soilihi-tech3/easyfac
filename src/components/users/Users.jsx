@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye, Megaphone, FileImage, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye, Megaphone, FileImage, RotateCcw, LogIn, LogOut, Calendar } from 'lucide-react';
 import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -43,9 +43,35 @@ export default function Users() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(15);
   const [showModal, setShowModal] = useState(false);
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [selectedUserLogs, setSelectedUserLogs] = useState([]);
+  const [activityUser, setActivityUser] = useState(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const { token, user: currentUser } = useAuth();
   const { refresh } = useApp();
+
+  const openActivityModal = async (u) => {
+    setActivityUser(u);
+    setShowActivityModal(true);
+    setLoadingLogs(true);
+    try {
+      const res = await fetch(`${API_URL}/api/users/${u.id}/logs`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedUserLogs(data);
+      } else {
+        setSelectedUserLogs([]);
+      }
+    } catch (err) {
+      console.error(err);
+      setSelectedUserLogs([]);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
   
   const [form, setForm] = useState({
     nom: '',
@@ -322,6 +348,7 @@ export default function Users() {
                 <th>Rôle</th>
                 <th>Voyage Assigné</th>
                 <th>Statut Compte</th>
+                <th>Dernière Connexion / Déconnexion</th>
                 <th>Permissions & Droits</th>
                 <th style={{ width: 100, textAlign: 'right' }}>Actions</th>
               </tr>
@@ -333,7 +360,7 @@ export default function Users() {
                 if (filteredUsers.length === 0) {
                   return (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                      <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                         Aucun employé ne correspond à votre recherche.
                       </td>
                     </tr>
@@ -343,6 +370,13 @@ export default function Users() {
                 return paginatedUsers.map(u => {
                   const voyage = voyages.find(v => v.id === u.voyageId);
                   const avatarBg = getAvatarGradient(u.prenom, u.nom);
+
+                  const formatTimestamp = (dateStr) => {
+                    if (!dateStr) return 'Jamais';
+                    const d = new Date(dateStr);
+                    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+                  };
+
                   return (
                     <tr key={u.id}>
                       <td>
@@ -382,14 +416,20 @@ export default function Users() {
                         {u.role === 'admin' ? (
                           <span style={{ color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 500 }}>Tous les accès</span>
                         ) : (
-                          voyage ? (
-                            <span className="badge badge-info" style={{ gap: 4, textTransform: 'none', background: 'var(--info-muted)', color: 'var(--info)', fontWeight: 600 }}>
-                              <Plane size={10} /> {voyage.nom}
+                          (!u.voyageId || u.voyageId === 'all') ? (
+                            <span className="badge badge-brand" style={{ gap: 4, textTransform: 'none', background: 'var(--brand-muted)', color: 'var(--brand)', fontWeight: 600 }}>
+                              <Plane size={10} /> Tous les voyages
                             </span>
                           ) : (
-                            <span className="badge badge-danger" style={{ fontSize: 10, textTransform: 'none', background: 'var(--danger-muted)', color: 'var(--danger)' }}>
-                              Aucun voyage
-                            </span>
+                            voyage ? (
+                              <span className="badge badge-info" style={{ gap: 4, textTransform: 'none', background: 'var(--info-muted)', color: 'var(--info)', fontWeight: 600 }}>
+                                <Plane size={10} /> {voyage.nom} ({new Date(voyage.dateDepart).toLocaleDateString('fr-FR')})
+                              </span>
+                            ) : (
+                              <span className="badge badge-danger" style={{ fontSize: 10, textTransform: 'none', background: 'var(--danger-muted)', color: 'var(--danger)' }}>
+                                Voyage inexistant
+                              </span>
+                            )
                           )
                         )}
                       </td>
@@ -408,6 +448,16 @@ export default function Users() {
                         >
                           {u.active !== 0 ? 'Actif' : 'Désactivé'}
                         </span>
+                      </td>
+                      <td>
+                        <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+                          <div style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <LogIn size={11} /> Connexion : {formatTimestamp(u.lastLoginAt)}
+                          </div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <LogOut size={11} /> Déconnexion : {formatTimestamp(u.lastLogoutAt)}
+                          </div>
+                        </div>
                       </td>
                       <td>
                         {u.role === 'admin' ? (
@@ -460,6 +510,9 @@ export default function Users() {
                       </td>
                       <td>
                         <div className="flex gap-2 justify-end">
+                          <button className="btn-icon" onClick={() => openActivityModal(u)} title="Voir Traçabilité & Activité" style={{ background: 'var(--brand-muted)', color: 'var(--brand)', borderColor: 'transparent' }}>
+                            <Eye size={13} />
+                          </button>
                           <button className="btn-icon" onClick={() => openModal(u)} title="Modifier"><Edit2 size={13} /></button>
                           {u.id !== currentUser.id && (
                             <button className="btn-icon danger" onClick={() => handleDelete(u.id)} title="Supprimer"><Trash2 size={13} /></button>
@@ -560,11 +613,20 @@ export default function Users() {
 
               {form.role === 'employee' && (
                 <div className="form-group">
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Voyage Logistique Assigné *</label>
-                  <select className="form-input form-select" required value={form.voyageId} onChange={e => setForm({...form, voyageId: e.target.value})} style={{ height: 42, paddingLeft: 14 }}>
-                    <option value="">Sélectionner un voyage de référence...</option>
-                    {voyages.map(v => <option key={v.id} value={v.id}>{v.nom} ({new Date(v.dateDepart).toLocaleDateString('fr-FR')})</option>)}
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Portée des Voyages Autorisés *</label>
+                  <select className="form-input form-select" value={form.voyageId} onChange={e => setForm({...form, voyageId: e.target.value})} style={{ height: 42, paddingLeft: 14 }}>
+                    <option value="">Tous les voyages (Accès global illimité)</option>
+                    <optgroup label="Voyages spécifiques">
+                      {voyages.map(v => (
+                        <option key={v.id} value={v.id}>
+                          {v.nom} ({v.dateDepart ? new Date(v.dateDepart).toLocaleDateString('fr-FR') : 'Sans date'})
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
+                  <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4, margin: 0 }}>
+                    Choisissez <strong>"Tous les voyages"</strong> pour que l'employé puisse voir et gérer l'ensemble des trajets, ou sélectionnez un voyage précis.
+                  </p>
                 </div>
               )}
 
@@ -751,6 +813,97 @@ export default function Users() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL TRAÇABILITÉ / HISTORIQUE D'ACTIVITÉ */}
+      {showActivityModal && activityUser && createPortal(
+        <div className="modal-overlay" onClick={() => setShowActivityModal(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 650, width: '90%' }}>
+            <div className="modal-header" style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div>
+                <h2 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 18 }}>
+                  <Eye size={20} color="var(--brand)" /> Traçabilité & Historique d'Activité
+                </h2>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Journal détaillé des connexions, déconnexions et réouvertures pour <strong>{activityUser.prenom} {activityUser.nom}</strong> ({activityUser.email})
+                </p>
+              </div>
+              <button className="btn-icon" onClick={() => setShowActivityModal(false)}><X size={18} /></button>
+            </div>
+
+            <div className="modal-body" style={{ padding: 24, maxHeight: '60vh', overflowY: 'auto' }}>
+              {/* Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                <div style={{ padding: 14, background: 'var(--bg-subtle)', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Dernière Connexion</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--success)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <LogIn size={14} /> {activityUser.lastLoginAt ? new Date(activityUser.lastLoginAt).toLocaleString('fr-FR') : 'Jamais'}
+                  </div>
+                </div>
+                <div style={{ padding: 14, background: 'var(--bg-subtle)', borderRadius: 12, border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>Dernière Déconnexion</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <LogOut size={14} /> {activityUser.lastLogoutAt ? new Date(activityUser.lastLogoutAt).toLocaleString('fr-FR') : 'Jamais'}
+                  </div>
+                </div>
+              </div>
+
+              <h4 style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 12, color: 'var(--text-primary)' }}>Journal complet des événements</h4>
+
+              {loadingLogs ? (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Chargement de la traçabilité...
+                </div>
+              ) : selectedUserLogs.length === 0 ? (
+                <div style={{ textAlignment: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', background: 'var(--bg-subtle)', borderRadius: 12 }}>
+                  Aucun événement d'activité enregistré pour le moment. Le journal se remplira automatiquement aux prochaines connexions/déconnexions.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {selectedUserLogs.map(log => {
+                    const isLogin = log.type === 'LOGIN';
+                    const isLogout = log.type === 'LOGOUT';
+                    return (
+                      <div key={log.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 10,
+                        border: '1px solid var(--border-subtle)',
+                        boxShadow: 'var(--shadow-xs)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: '50%',
+                            background: isLogin ? 'var(--success)' : (isLogout ? 'var(--danger)' : 'var(--brand)')
+                          }} />
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {log.description}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                              Type: {log.type}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Calendar size={12} /> {new Date(log.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ padding: '16px 24px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowActivityModal(false)}>Fermer</button>
+            </div>
           </div>
         </div>,
         document.body

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
-import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, getVoyagesCache, getClientsCache, getParametresCache, convertCurrency } from '../../data/store';
+import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, formatDate, getVoyagesCache, getClientsCache, getParametresCache, convertCurrency } from '../../data/store';
 import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 const MODES_PAIEMENT = [
@@ -44,15 +44,21 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     modePaiement: 'cash',
     voyageId: '',
     note: '',
-    dateLimite: '',
+    dateLimite: new Date().toISOString().split('T')[0],
     payerComores: 0,
     montantComores: '0',
   });
 
-  // If editing, format the existing dateLimite to YYYY-MM-DD
+  // If editing, format the existing dateLimite to YYYY-MM-DD, otherwise default to today
   useEffect(() => {
-    if (facture && facture.dateLimite) {
-      setForm(f => ({ ...f, dateLimite: new Date(facture.dateLimite).toISOString().split('T')[0] }));
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (facture) {
+      const dLimite = facture.dateLimite 
+        ? new Date(facture.dateLimite).toISOString().split('T')[0] 
+        : todayStr;
+      setForm(f => ({ ...f, dateLimite: dLimite }));
+    } else {
+      setForm(f => ({ ...f, dateLimite: todayStr }));
     }
   }, [facture]);
 
@@ -240,7 +246,11 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                   disabled={user?.role === 'employee' || !!defaultVoyageId}
                 >
                   <option value="">Aucun voyage</option>
-                  {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+                  {voyages.map(v => {
+                    const dateStr = v.dateDepart ? formatDate(v.dateDepart) : '';
+                    const label = dateStr ? `${v.nom} (${dateStr})` : v.nom;
+                    return <option key={v.id} value={v.id}>{label}</option>;
+                  })}
                 </select>
               </div>
             </div>

@@ -1,24 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getFactures, addFacture, updateFacture, deleteFacture, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache, API_URL } from '../../data/store';
+import { getFactures, addFacture, updateFacture, deleteFacture, toggleFactureRecuperation, getVoyages, formatCurrency, formatDate, getFacturesCache, getVoyagesCache, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
-import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock } from 'lucide-react';
+import { FileText, Search, Plus, Eye, Edit2, Trash2, Filter, X, Check, Bell, DollarSign, TrendingUp, CheckCircle, Clock, Package, CheckSquare } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import FactureModal from './FactureModal';
 import ReceiptModal from './ReceiptModal';
 import Pagination from '../common/Pagination';
+import { TableSkeleton } from '../common/Skeleton';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const STATUTS = [
-  { value: '',         label: 'Tous les statuts' },
-  { value: 'paye',     label: 'Payé' },
-  { value: 'partiel',  label: 'Partiel' },
+  { value: '', label: 'Tous les statuts' },
+  { value: 'paye', label: 'Payé' },
+  { value: 'partiel', label: 'Partiel' },
   { value: 'non_paye', label: 'Non payé' },
 ];
 
 const STATUT_CFG = {
-  paye:     { label: 'Payé',     cls: 'badge-green' },
-  partiel:  { label: 'Partiel',  cls: 'badge-warning' },
+  paye: { label: 'Payé', cls: 'badge-green' },
+  partiel: { label: 'Partiel', cls: 'badge-warning' },
   non_paye: { label: 'Non payé', cls: 'badge-danger' },
 };
 
@@ -35,6 +36,7 @@ export default function Factures() {
   });
   const [filterVoyage, setFilterVoyage] = useState('');
   const [filterPays, setFilterPays] = useState('');
+  const [filterRecuperation, setFilterRecuperation] = useState('');
   const [filterOverdue, setFilterOverdue] = useState(false);
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
@@ -52,7 +54,7 @@ export default function Factures() {
   const [paymentFacture, setPaymentFacture] = useState(null);
   const [newRemaining, setNewRemaining] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const { toast, devise, prixKg, refresh, entreprise, params } = useApp();
+  const { toast, devise, prixKg, refresh, refreshData, entreprise, params } = useApp();
   const config = params?.config || {};
 
   const isAdmin = user?.role === 'admin';
@@ -71,6 +73,7 @@ export default function Factures() {
     try {
       const [allFactures, allVoyages] = await Promise.all([getFactures(), getVoyages()]);
       let f = allFactures.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       if (search) {
         const s = search.toLowerCase();
         f = f.filter(x =>
@@ -105,6 +108,9 @@ export default function Factures() {
       if (filterAnnee) {
         f = f.filter(x => new Date(x.createdAt).getFullYear() === parseInt(filterAnnee));
       }
+      if (filterRecuperation) {
+        f = f.filter(x => (filterRecuperation === 'recupere' ? x.recuperation === 'recupere' : x.recuperation !== 'recupere'));
+      }
       setFactures(f);
       setVoyages(allVoyages);
       setIsFirstLoad(false);
@@ -112,7 +118,18 @@ export default function Factures() {
       toast('Erreur de chargement des factures', 'error');
     }
     setLoading(false);
-  }, [search, filterStatut, filterVoyage, filterPays, filterOverdue, filterMois, filterAnnee, isFirstLoad]);
+  }, [search, filterStatut, filterVoyage, filterPays, filterRecuperation, filterOverdue, filterMois, filterAnnee, isFirstLoad]);
+
+  const handleToggleRecuperation = async (facture) => {
+    if (facture.recuperation === 'recupere') return; // Grayed out / disabled once retrieved
+    try {
+      await toggleFactureRecuperation(facture.id, 'recupere');
+      toast('Colis marqué comme Récupéré ');
+      load();
+    } catch (err) {
+      toast('Erreur lors du changement de statut de récupération', 'error');
+    }
+  };
 
   const startPayment = (f) => {
     setPaymentFacture(f);
@@ -124,7 +141,7 @@ export default function Factures() {
   const handleRemainingChange = (valStr) => {
     if (!paymentFacture) return;
     const remainingLimit = Number(paymentFacture.montantTotal || 0) - Number(paymentFacture.montantPaye || 0);
-    
+
     if (valStr === '') {
       setNewRemaining('');
       setPaymentAmount(String(remainingLimit));
@@ -140,7 +157,7 @@ export default function Factures() {
   const handlePaymentChange = (valStr) => {
     if (!paymentFacture) return;
     const remainingLimit = Number(paymentFacture.montantTotal || 0) - Number(paymentFacture.montantPaye || 0);
-    
+
     if (valStr === '') {
       setPaymentAmount('');
       setNewRemaining(String(remainingLimit));
@@ -179,6 +196,7 @@ export default function Factures() {
 
       toast('Paiement enregistré avec succès');
       setPaymentFacture(null);
+      if (refreshData) refreshData();
       load();
     } catch (err) {
       toast("Erreur lors de l'enregistrement du paiement", 'error');
@@ -194,10 +212,10 @@ export default function Factures() {
     return f.statut === 'paye' || f.statut === 'Payée' || (Number(f.montantPaye || 0) >= Number(f.montantTotal || 0) && Number(f.montantTotal || 0) > 0);
   };
 
-  const openAdd  = () => { setEditFacture(null); setShowModal(true); };
+  const openAdd = () => { setEditFacture(null); setShowModal(true); };
   const openEdit = (f) => {
-    if (isFacturePaid(f)) {
-      toast("Une facture déjà payée ne peut pas être modifiée.", "error");
+    if (isFacturePaid(f) && !isAdmin) {
+      toast("Facture déjà réglée : Seul un Administrateur peut modifier une facture payée. Veuillez contacter l'admin.", "error");
       return;
     }
     setEditFacture(f);
@@ -206,8 +224,8 @@ export default function Factures() {
   const openView = (f) => setViewFacture(f);
 
   const triggerDelete = (f) => {
-    if (isFacturePaid(f)) {
-      toast("Une facture déjà payée ne peut pas être supprimée.", "error");
+    if (isFacturePaid(f) && !isAdmin) {
+      toast("Facture déjà réglée : Seul un Administrateur peut supprimer une facture payée. Veuillez contacter l'admin.", "error");
       return;
     }
     setConfirmDelete(f);
@@ -245,7 +263,7 @@ export default function Factures() {
     const paye = facture.montantPaye;
     const reste = total - paye;
     const dateStr = facture.dateLimite ? formatDate(facture.dateLimite) : "immédiatement";
-    
+
     const hasCustomCordial = config.rappelCordial !== undefined && config.rappelCordial !== '';
     const customCordial = hasCustomCordial
       ? config.rappelCordial
@@ -269,7 +287,7 @@ export default function Factures() {
     }
 
     const lines = linesArray.join('\n');
-    
+
     let phone = facture.expediteur?.telephone || facture.destinataire?.telephone || '';
     phone = phone.replace(/\D/g, '');
 
@@ -283,7 +301,7 @@ export default function Factures() {
       const token = localStorage.getItem('token');
       const res = await fetch(`${API_URL}/api/whatsapp/send-message`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
@@ -308,8 +326,17 @@ export default function Factures() {
     }
   };
 
-  const getVoyageName = (id) => voyages.find(v => v.id === id)?.nom || '—';
-  const totalCA   = factures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
+  const formatVoyageLabel = (v) => {
+    if (!v) return '';
+    const dateStr = v.dateDepart ? formatDate(v.dateDepart) : '';
+    return dateStr ? `${v.nom} (${dateStr})` : v.nom;
+  };
+
+  const getVoyageName = (id) => {
+    const v = voyages.find(item => item.id === id);
+    return v ? formatVoyageLabel(v) : '—';
+  };
+  const totalCA = factures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
   const totalPaye = factures.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
 
   if (user?.role === 'employee' && !permissions.voirFactures) {
@@ -328,17 +355,17 @@ export default function Factures() {
     <div className="page-enter page-with-table">
       <div className="sticky-top-section">
         {/* Header */}
-      <div className="page-header" style={{ marginBottom: 0 }}>
-        <div>
-          <h1 className="page-title">Factures</h1>
-          <p className="page-subtitle">Pilotez la facturation, enregistrez les règlements et suivez les soldes.</p>
+        <div className="page-header" style={{ marginBottom: 0 }}>
+          <div>
+            <h1 className="page-title">Factures</h1>
+            <p className="page-subtitle">Pilotez la facturation, enregistrez les règlements et suivez les soldes.</p>
+          </div>
+          {(isAdmin || permissions.creerFacture) && (
+            <button className="btn btn-primary" onClick={openAdd}>
+              <Plus size={16} /> Nouvelle facture
+            </button>
+          )}
         </div>
-        {(isAdmin || permissions.creerFacture) && (
-          <button className="btn btn-primary" onClick={openAdd}>
-            <Plus size={16} /> Nouvelle facture
-          </button>
-        )}
-      </div>
       </div>
 
       {/* Factures KPI Grid */}
@@ -406,6 +433,11 @@ export default function Factures() {
               <option value="comores">Comores (100%)</option>
               <option value="sen_com">Sen-Com (Mixte)</option>
             </select>
+            <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterRecuperation} onChange={e => setFilterRecuperation(e.target.value)}>
+              <option value="">Toutes récupérations</option>
+              <option value="recupere">Récupéré</option>
+              <option value="non_recupere">Non récupéré</option>
+            </select>
           </div>
           <button
             className={`btn ${filterOverdue ? 'btn-danger' : 'btn-secondary'}`}
@@ -454,7 +486,7 @@ export default function Factures() {
         <div className="flex gap-3 flex-wrap items-center" style={{ width: '100%' }}>
           <select className="form-input form-select" style={{ flex: '2 1 200px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
             <option value="">Tous les voyages</option>
-            {voyages.map(v => <option key={v.id} value={v.id}>{v.nom}</option>)}
+            {voyages.map(v => <option key={v.id} value={v.id}>{formatVoyageLabel(v)}</option>)}
           </select>
           <select className="form-input form-select" style={{ flex: '1 1 120px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
             <option value="">Tous les mois</option>
@@ -496,6 +528,7 @@ export default function Factures() {
                 <th>Payé</th>
                 <th>Reste</th>
                 <th>Statut</th>
+                <th>Récupération</th>
                 <th>Date d'échéance</th>
                 <th>Date</th>
                 <th>Enregistré par</th>
@@ -504,7 +537,7 @@ export default function Factures() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={13} style={{ textAlign: 'center', padding: '40px' }}>Chargement...</td></tr>
+                <TableSkeleton rows={6} cols={13} />
               ) : (() => {
                 const s = search.toLowerCase();
                 const filteredFactures = factures.filter(f => {
@@ -519,8 +552,8 @@ export default function Factures() {
                   const matchVoyage = !filterVoyage || f.voyageId === filterVoyage;
                   const matchPays = !filterPays || (
                     filterPays === 'senegal' ? !f.payerComores :
-                    filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
-                    filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
+                      filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
+                        filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
                   );
                   const matchOverdue = !filterOverdue || (f.montantTotal - f.montantPaye > 0);
 
@@ -585,6 +618,51 @@ export default function Factures() {
                       {formatCurrency(f.montantTotal - f.montantPaye, devise)}
                     </td>
                     <td><span className={`badge ${STATUT_CFG[f.statut]?.cls}`}>{STATUT_CFG[f.statut]?.label}</span></td>
+                    <td>
+                      {isFacturePaid(f) ? (
+                        f.recuperation === 'recupere' ? (
+                          <button
+                            disabled
+                            className="badge badge-success"
+                            style={{
+                              opacity: 0.6,
+                              cursor: 'not-allowed',
+                              border: 'none',
+                              gap: 4,
+                              padding: '5px 10px',
+                              fontSize: 11,
+                              fontWeight: 700
+                            }}
+                            title="Colis déjà récupéré"
+                          >
+                            <CheckSquare size={12} /> Récupéré
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleRecuperation(f)}
+                            className="btn btn-primary"
+                            style={{
+                              height: 28,
+                              fontSize: 11,
+                              padding: '0 10px',
+                              borderRadius: 8,
+                              fontWeight: 700,
+                              gap: 4,
+                              background: 'var(--brand)',
+                              color: '#fff',
+                              boxShadow: 'var(--shadow-xs)'
+                            }}
+                            title="Cliquer pour marquer la facture/colis comme récupéré par le client"
+                          >
+                            <Package size={12} /> Récupérer
+                          </button>
+                        )
+                      ) : (
+                        <span style={{ color: 'var(--text-disabled)', fontSize: 11, fontWeight: 500 }}>
+                          Paiement requis
+                        </span>
+                      )}
+                    </td>
                     <td style={{ color: f.dateLimite && (f.montantTotal - f.montantPaye > 0) ? 'var(--danger)' : 'var(--text-muted)', fontSize: 12, fontWeight: f.dateLimite ? 600 : 400 }}>
                       {f.dateLimite ? formatDate(f.dateLimite) : '-'}
                     </td>
@@ -606,15 +684,15 @@ export default function Factures() {
                         )}
                         <button className="btn-icon" onClick={() => openView(f)} title="Aperçu"><Eye size={14} /></button>
                         {(isAdmin || permissions?.modifierFacture) && (
-                          isFacturePaid(f) ? (
-                            <button className="btn-icon" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : modification impossible"><Edit2 size={14} /></button>
+                          (isFacturePaid(f) && !isAdmin) ? (
+                            <button className="btn-icon" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : Seul l'administrateur peut la modifier. Veuillez le contacter."><Edit2 size={14} /></button>
                           ) : (
                             <button className="btn-icon" onClick={() => openEdit(f)} title="Modifier"><Edit2 size={14} /></button>
                           )
                         )}
                         {(isAdmin || permissions?.supprimerFacture) && (
-                          isFacturePaid(f) ? (
-                            <button className="btn-icon danger" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : suppression impossible"><Trash2 size={14} /></button>
+                          (isFacturePaid(f) && !isAdmin) ? (
+                            <button className="btn-icon danger" disabled style={{ opacity: 0.3, cursor: 'not-allowed' }} title="Facture payée : Seul l'administrateur peut la supprimer. Veuillez le contacter."><Trash2 size={14} /></button>
                           ) : (
                             <button className="btn-icon danger" onClick={() => triggerDelete(f)} title="Supprimer"><Trash2 size={14} /></button>
                           )
@@ -642,8 +720,8 @@ export default function Factures() {
               const matchVoyage = !filterVoyage || f.voyageId === filterVoyage;
               const matchPays = !filterPays || (
                 filterPays === 'senegal' ? !f.payerComores :
-                filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
-                filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
+                  filterPays === 'comores' ? (f.payerComores && Number(f.montantPaye || 0) === 0) :
+                    filterPays === 'sen_com' ? (f.payerComores && Number(f.montantPaye || 0) > 0) : true
               );
               const matchOverdue = !filterOverdue || (f.montantTotal - f.montantPaye > 0);
               let matchMoisAnnee = true;
@@ -708,7 +786,7 @@ export default function Factures() {
               <h2 className="modal-title">Réaliser un paiement</h2>
               <button className="modal-close" onClick={() => setPaymentFacture(null)}><X size={15} /></button>
             </div>
-            
+
             <div style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Facture N°</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--brand)' }}>{paymentFacture.numero}</div>

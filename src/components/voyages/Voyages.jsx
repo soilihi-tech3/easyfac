@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { Truck, Plus, Edit2, Trash2, Calendar, X, Check, TrendingUp, TrendingDown, DollarSign, FileText, Search } from 'lucide-react';
 import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
+import { CardSkeleton } from '../common/Skeleton';
 
 const emptyForm = { nom: '', dateDepart: '', description: '' };
 
@@ -21,6 +22,7 @@ export default function Voyages() {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterVoyage, setFilterVoyage] = useState('');
   const [filterMois, setFilterMois] = useState('');
   const [filterAnnee, setFilterAnnee] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -88,6 +90,12 @@ export default function Voyages() {
     }
   };
 
+  const formatVoyageLabel = (v) => {
+    if (!v) return '';
+    const dateStr = v.dateDepart ? formatDate(v.dateDepart) : '';
+    return dateStr ? `${v.nom} (${dateStr})` : v.nom;
+  };
+
   const getVoyageStats = (voyageId) => {
     const facs = factures.filter(f => f.voyageId === voyageId);
     const deps = depenses.filter(d => d.voyageId === voyageId);
@@ -97,6 +105,7 @@ export default function Voyages() {
   };
 
   const filteredVoyages = voyages.filter(v => {
+    if (filterVoyage && v.id !== filterVoyage) return false;
     if (search) {
       const s = search.toLowerCase();
       const matchNom = v.nom?.toLowerCase().includes(s);
@@ -113,6 +122,14 @@ export default function Voyages() {
     }
     return true;
   });
+
+  const dynamicVoyageStats = filteredVoyages.reduce((acc, v) => {
+    const s = getVoyageStats(v.id);
+    acc.totalEncaisse += s.totalEncaisse;
+    acc.totalDepenses += s.totalDepenses;
+    acc.benefice += s.benefice;
+    return acc;
+  }, { totalEncaisse: 0, totalDepenses: 0, benefice: 0 });
 
   if (user?.role === 'employee' && !permissions.voirVoyages) {
     return (
@@ -131,18 +148,61 @@ export default function Voyages() {
       <div className="sticky-top-section">
         {/* Header */}
         <div className="page-header" style={{ marginBottom: 0 }}>
-        <div>
-          <h1 className="page-title">Voyages</h1>
-          <p className="page-subtitle">
-            {filteredVoyages.length} voyage{filteredVoyages.length > 1 ? 's' : ''} affiché{filteredVoyages.length > 1 ? 's' : ''} (sur {voyages.length})
-          </p>
+          <div>
+            <h1 className="page-title">Voyages</h1>
+            <p className="page-subtitle">
+              Gérez les trajets de transport et suivez le bilan financier par voyage.
+            </p>
+          </div>
+          {(isAdmin || permissions.creerVoyage) && (
+            <button className="btn btn-primary" onClick={openAdd}>
+              <Plus size={16} /> Nouveau voyage
+            </button>
+          )}
         </div>
-        {(isAdmin || permissions.creerVoyage) && (
-          <button className="btn btn-primary" onClick={openAdd}>
-            <Plus size={16} /> Nouveau voyage
-          </button>
-        )}
       </div>
+
+      {/* Dynamic KPI Cards Grid */}
+      <div className="kpi-grid cols-4" style={{ marginBottom: 24 }}>
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--info)', '--kpi-bg': 'var(--info-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <Truck size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{filteredVoyages.length}</div>
+            <div className="kpi-label">{filterVoyage ? 'Voyage sélectionné' : 'Nombre de voyages'}</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--success)', '--kpi-bg': 'var(--success-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <TrendingUp size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(dynamicVoyageStats.totalEncaisse, devise)}</div>
+            <div className="kpi-label">Montant encaissé</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': 'var(--danger)', '--kpi-bg': 'var(--danger-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <TrendingDown size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(dynamicVoyageStats.totalDepenses, devise)}</div>
+            <div className="kpi-label">Dépenses totales</div>
+          </div>
+        </div>
+
+        <div className="kpi-card" style={{ '--kpi-color': dynamicVoyageStats.benefice >= 0 ? 'var(--brand)' : 'var(--danger)', '--kpi-bg': dynamicVoyageStats.benefice >= 0 ? 'var(--brand-muted)' : 'var(--danger-muted)' }}>
+          <div className="kpi-icon-wrap">
+            <DollarSign size={18} strokeWidth={2} />
+          </div>
+          <div className="kpi-info">
+            <div className="kpi-value">{formatCurrency(dynamicVoyageStats.benefice, devise)}</div>
+            <div className="kpi-label">Bénéfice net</div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -152,6 +212,10 @@ export default function Voyages() {
             <span className="search-icon-wrap"><Search size={15} /></span>
             <input className="form-input" style={{ width: '100%' }} placeholder="Rechercher un voyage..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+          <select className="form-input form-select" style={{ flex: '1.5 1 200px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
+            <option value="">Tous les voyages</option>
+            {voyages.map(v => <option key={v.id} value={v.id}>{formatVoyageLabel(v)}</option>)}
+          </select>
           <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
             <option value="">Tous les mois</option>
             <option value="0">Janvier</option>
@@ -180,7 +244,7 @@ export default function Voyages() {
       {/* Cards Grid */}
       <div className="grid-3" style={{ gap: 18 }}>
         {loading ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px' }}>Chargement...</div>
+          <CardSkeleton count={3} />
         ) : (() => {
           const paginatedVoyages = filteredVoyages.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
           if (filteredVoyages.length === 0) {

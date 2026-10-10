@@ -58,7 +58,18 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
-  const logout = () => {
+  const logout = async () => {
+    if (token) {
+      try {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          keepalive: true
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
     setToken(null);
     setUser(null);
     localStorage.removeItem('token');

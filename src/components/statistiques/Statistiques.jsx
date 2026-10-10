@@ -3,20 +3,33 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { TrendingUp, CheckCircle, TrendingDown, Activity, Truck } from 'lucide-react';
-import { getFactures, getDepenses, getClients, getVoyages, formatCurrency, formatDate } from '../../data/store';
+import { TrendingUp, CheckCircle, TrendingDown, Activity, Truck, User, Weight, FileText, ShoppingBag } from 'lucide-react';
+import { getFactures, getDepenses, getClients, getVoyages, formatCurrency, formatDate, API_URL } from '../../data/store';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Statistiques() {
   const [allFactures, setAllFactures] = useState([]);
   const [allDepenses, setAllDepenses] = useState([]);
   const [allClients, setAllClients] = useState([]);
   const [allVoyages, setAllVoyages] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  
   const [filterMois, setFilterMois] = useState('');
-  const [filterAnnee, setFilterAnnee] = useState('');
+  const [filterAnnee, setFilterAnnee] = useState(String(new Date().getFullYear()));
+  const [filterVoyage, setFilterVoyage] = useState('');
+  const [filterEmploye, setFilterEmploye] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const { devise, refresh } = useApp();
+  const { token, user } = useAuth();
+
+  const formatVoyageLabel = (v) => {
+    if (!v) return '';
+    const dateStr = v.dateDepart ? formatDate(v.dateDepart) : '';
+    return dateStr ? `${v.nom} (${dateStr})` : v.nom;
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -32,6 +45,18 @@ export default function Statistiques() {
         setAllDepenses(deps);
         setAllClients(clis);
         setAllVoyages(voys);
+
+        if (token) {
+          try {
+            const res = await fetch(`${API_URL}/api/users`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (res.ok) {
+              const usersData = await res.json();
+              setAllUsers(usersData);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
         setIsFirstLoad(false);
       } catch (err) {
         console.error(err);
@@ -39,32 +64,75 @@ export default function Statistiques() {
       setLoading(false);
     };
     load();
-  }, [refresh, isFirstLoad]);
+  }, [refresh, isFirstLoad, token]);
 
   if (loading) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
 
-  // Filter lists by month and year dynamically
+  // Filter lists dynamically by month, year, voyage, and employee
+  const activeEmployeFilter = user?.role === 'employee' ? user.id : filterEmploye;
+
   const filteredFactures = allFactures.filter(f => {
-    if (!f.createdAt) return true;
-    const d = new Date(f.createdAt);
-    if (filterMois && d.getMonth() !== parseInt(filterMois)) return false;
-    if (filterAnnee && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    if (filterVoyage && f.voyageId !== filterVoyage) return false;
+    if (activeEmployeFilter) {
+      const matchId = f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter || f.userId === activeEmployeFilter;
+      const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+      let matchName = false;
+      if (selectedUserObj && f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase();
+        if (creatorName && empName && creatorName === empName) matchName = true;
+      }
+      if (!matchId && !matchName) return false;
+    }
+    if (f.createdAt) {
+      const d = new Date(f.createdAt);
+      if (filterMois !== '' && d.getMonth() !== parseInt(filterMois)) return false;
+      if (filterAnnee !== '' && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    }
     return true;
   });
 
   const filteredDepenses = allDepenses.filter(dep => {
-    if (!dep.createdAt) return true;
-    const d = new Date(dep.createdAt);
-    if (filterMois && d.getMonth() !== parseInt(filterMois)) return false;
-    if (filterAnnee && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    if (filterVoyage && dep.voyageId !== filterVoyage) return false;
+    if (activeEmployeFilter) {
+      const matchId = dep.creeParId === activeEmployeFilter || dep.creePar?.id === activeEmployeFilter || dep.userId === activeEmployeFilter;
+      const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+      let matchName = false;
+      if (selectedUserObj && dep.creePar) {
+        const creatorName = `${dep.creePar.prenom || ''} ${dep.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase();
+        if (creatorName && empName && creatorName === empName) matchName = true;
+      }
+      if (!matchId && !matchName) return false;
+    }
+    if (dep.createdAt) {
+      const d = new Date(dep.createdAt);
+      if (filterMois !== '' && d.getMonth() !== parseInt(filterMois)) return false;
+      if (filterAnnee !== '' && d.getFullYear() !== parseInt(filterAnnee)) return false;
+    }
     return true;
   });
 
-  // Calculate dynamic stats
+  // Calculate dynamic stats from filtered data
   const totalCA = filteredFactures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
-  const totalPaye = filteredFactures.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+  
+  const totalPaye = filteredFactures.reduce((s, f) => {
+    if (activeEmployeFilter) {
+      if (f.paiements && f.paiements.length > 0) {
+        const empPay = f.paiements.filter(p => p.userId === activeEmployeFilter).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+        return s + empPay;
+      }
+      const isCreator = f.userId === activeEmployeFilter || f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter;
+      return s + (isCreator ? Number(f.montantPaye || 0) : 0);
+    }
+    return s + Number(f.montantPaye || 0);
+  }, 0);
+
   const totalDepenses = filteredDepenses.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
+  const nbDepenses = filteredDepenses.length;
   const beneficeNet = totalPaye - totalDepenses;
+  const totalKilos = filteredFactures.reduce((s, f) => s + Number(f.poidsTotal || 0), 0);
+  const nbFactures = filteredFactures.length;
 
   const facturesPaye = filteredFactures.filter(f => f.statut === 'paye').length;
   const facturesPartiel = filteredFactures.filter(f => f.statut === 'partiel').length;
@@ -76,11 +144,17 @@ export default function Statistiques() {
     { name: 'Impayées',   value: facturesImpaye,  color: '#ef4444' },
   ].filter(d => d.value > 0);
 
+  const selectedEmployeObj = filterEmploye ? allUsers.find(u => u.id === filterEmploye) : null;
+  const selectedVoyageObj = filterVoyage ? allVoyages.find(v => v.id === filterVoyage) : null;
+
   const kpis = [
     { label: "Chiffre d'affaires",  val: formatCurrency(totalCA,        devise), Icon: TrendingUp,   color: 'var(--brand)',   bg: 'var(--brand-muted)'   },
     { label: 'Encaissé',            val: formatCurrency(totalPaye,       devise), Icon: CheckCircle,  color: 'var(--success)', bg: 'var(--success-muted)' },
     { label: 'Dépenses totales',    val: formatCurrency(totalDepenses,   devise), Icon: TrendingDown, color: 'var(--danger)',  bg: 'var(--danger-muted)'  },
+    { label: 'Nombre de Dépenses',  val: `${nbDepenses} dépense(s)`,            Icon: ShoppingBag,   color: '#e11d48',        bg: 'rgba(225,29,72,0.12)' },
     { label: 'Bénéfice net',        val: formatCurrency(beneficeNet,     devise), Icon: Activity,     color: 'var(--purple)',  bg: 'var(--purple-muted)'  },
+    { label: 'Total Poids (Kilos)', val: `${totalKilos.toLocaleString('fr-FR')} kg`, Icon: Weight,    color: 'var(--info)',    bg: 'var(--info-muted)'    },
+    { label: 'Nombre de Factures',  val: `${nbFactures} facture(s)`,            Icon: FileText,  color: 'var(--warning)', bg: 'var(--warning-muted)' },
   ];
 
   const tooltipStyle = {
@@ -98,7 +172,7 @@ export default function Statistiques() {
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0 };
+    monthly[key] = { mois: d.toLocaleDateString('fr-FR', { month: 'short' }), ca: 0, paye: 0, kilos: 0 };
   }
   filteredFactures.forEach(f => {
     if (!f.createdAt) return;
@@ -107,6 +181,7 @@ export default function Statistiques() {
     if (monthly[key]) {
       monthly[key].ca += Number(f.montantTotal || 0);
       monthly[key].paye += Number(f.montantPaye || 0);
+      monthly[key].kilos += Number(f.poidsTotal || 0);
     }
   });
 
@@ -118,24 +193,53 @@ export default function Statistiques() {
     const deps = filteredDepenses.filter(d => d.voyageId === v.id);
     const totalEncaisse = facs.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
     const totalDepenses = deps.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
+    const totalKilosVoyage = facs.reduce((s, f) => s + Number(f.poidsTotal || 0), 0);
     return {
       ...v,
+      labelName: formatVoyageLabel(v),
       totalEncaisse,
       totalDepenses,
+      totalKilosVoyage,
       benefice: totalEncaisse - totalDepenses,
       nbFactures: facs.length
     };
   }).filter(v => v.nbFactures > 0 || v.totalDepenses > 0);
+
+  // Compile Employee performance statistics dynamically
+  const employeeStats = allUsers.map(u => {
+    const facs = filteredFactures.filter(f => {
+      const matchId = f.creeParId === u.id || f.creePar?.id === u.id || f.userId === u.id;
+      if (matchId) return true;
+      if (f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${u.prenom || ''} ${u.nom || ''}`.trim().toLowerCase();
+        return creatorName && empName && creatorName === empName;
+      }
+      return false;
+    });
+    const totalCAEmp = facs.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
+    const totalPayeEmp = facs.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+    const totalKilosEmp = facs.reduce((s, f) => s + Number(f.poidsTotal || 0), 0);
+    return {
+      id: u.id,
+      name: `${u.prenom || ''} ${u.nom || ''}`.trim() || u.email || 'Employé',
+      role: u.role,
+      nbFactures: facs.length,
+      totalCA: totalCAEmp,
+      totalPaye: totalPayeEmp,
+      totalKilos: totalKilosEmp
+    };
+  }).filter(e => e.nbFactures > 0 || !filterEmploye);
 
   return (
     <div className="page-enter">
       <div className="page-header">
         <div>
           <h1 className="page-title">Statistiques</h1>
-          <p className="page-subtitle">Analyse détaillée de votre activité</p>
+          <p className="page-subtitle">Analyse détaillée et filtrage dynamique de votre activité</p>
         </div>
         
-        {/* Dynamic Month/Year Filters */}
+        {/* Dynamic Filters: Mois, Année, Voyage, Employé */}
         <div className="flex gap-3 flex-wrap">
           <select className="form-input form-select" style={{ flex: '1 1 140px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
             <option value="">Tous les mois</option>
@@ -143,25 +247,63 @@ export default function Statistiques() {
               <option key={i} value={i}>{m}</option>
             ))}
           </select>
+
           <select className="form-input form-select" style={{ flex: '1 1 120px' }} value={filterAnnee} onChange={e => setFilterAnnee(e.target.value)}>
             <option value="">Toutes les années</option>
             {['2024', '2025', '2026', '2027', '2028', '2029', '2030'].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
+
+          <select className="form-input form-select" style={{ flex: '1 1 200px' }} value={filterVoyage} onChange={e => setFilterVoyage(e.target.value)}>
+            <option value="">Tous les voyages</option>
+            {allVoyages.map(v => (
+              <option key={v.id} value={v.id}>{formatVoyageLabel(v)}</option>
+            ))}
+          </select>
+
+          <select className="form-input form-select" style={{ flex: '1 1 180px' }} value={filterEmploye} onChange={e => setFilterEmploye(e.target.value)}>
+            <option value="">Tous les employés</option>
+            {allUsers.map(u => (
+              <option key={u.id} value={u.id}>{u.prenom} {u.nom} ({u.role === 'admin' ? 'Admin' : 'Employé'})</option>
+            ))}
+          </select>
         </div>
       </div>
 
+      {/* Active Filter Indicators */}
+      {(filterMois !== '' || filterAnnee !== '' || filterVoyage !== '' || filterEmploye !== '') && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Filtres actifs :</span>
+          {filterMois !== '' && (
+            <span className="badge badge-brand">
+              Mois : {['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][parseInt(filterMois)]}
+            </span>
+          )}
+          {filterAnnee !== '' && <span className="badge badge-brand">Année : {filterAnnee}</span>}
+          {selectedVoyageObj && <span className="badge badge-info"><Truck size={10} style={{ marginRight: 4 }} /> Voyage : {formatVoyageLabel(selectedVoyageObj)}</span>}
+          {selectedEmployeObj && <span className="badge badge-purple"><User size={10} style={{ marginRight: 4 }} /> Employé : {selectedEmployeObj.prenom} {selectedEmployeObj.nom}</span>}
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ padding: '2px 8px', fontSize: 11 }}
+            onClick={() => { setFilterMois(''); setFilterAnnee(String(new Date().getFullYear())); setFilterVoyage(''); setFilterEmploye(''); }}
+          >
+            Réinitialiser les filtres
+          </button>
+        </div>
+      )}
+
       {/* KPI Grid */}
-      <div className="kpi-grid" style={{ marginBottom: 24 }}>
+      <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 24 }}>
         {kpis.map((k, i) => (
           <div
             key={i}
             className="kpi-card"
-            style={{ '--kpi-color': k.color, '--kpi-bg': k.bg, animationDelay: `${i * 0.07}s` }}
+            style={{ '--kpi-color': k.color, '--kpi-bg': k.bg, animationDelay: `${i * 0.07}s`, padding: '16px 14px' }}
+            title={`${k.label} : ${k.val}`}
           >
-            <div className="kpi-icon-wrap">
-              <k.Icon size={20} strokeWidth={1.8} />
+            <div className="kpi-icon-wrap" style={{ width: 40, height: 40 }}>
+              <k.Icon size={18} strokeWidth={1.8} />
             </div>
             <div className="kpi-info">
               <div className="kpi-value">{k.val}</div>
@@ -170,6 +312,44 @@ export default function Statistiques() {
           </div>
         ))}
       </div>
+
+      {/* Specific Employee Highlight Widget if employee filter selected */}
+      {selectedEmployeObj && (
+        <div className="card" style={{ marginBottom: 20, background: 'var(--bg-elevated)', borderLeft: '4px solid var(--purple)' }}>
+          <div className="flex items-center gap-3">
+            <div style={{
+              width: 44, height: 44, borderRadius: '50%', background: 'var(--purple-muted)', color: 'var(--purple)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16
+            }}>
+              {selectedEmployeObj.prenom?.[0]}{selectedEmployeObj.nom?.[0]}
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Activité détaillée de {selectedEmployeObj.prenom} {selectedEmployeObj.nom}</h3>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+                Rôle : {selectedEmployeObj.role === 'admin' ? 'Administrateur' : 'Employé'} | Email : {selectedEmployeObj.email}
+              </p>
+            </div>
+          </div>
+          <div className="grid-4" style={{ marginTop: 16, gap: 12 }}>
+            <div style={{ padding: 12, background: 'var(--bg-surface)', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Factures Créées</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand)' }}>{nbFactures}</div>
+            </div>
+            <div style={{ padding: 12, background: 'var(--bg-surface)', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Total Kilos Traités</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--info)' }}>{totalKilos.toLocaleString('fr-FR')} kg</div>
+            </div>
+            <div style={{ padding: 12, background: 'var(--bg-surface)', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Chiffre d'affaires généré</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)' }}>{formatCurrency(totalCA, devise)}</div>
+            </div>
+            <div style={{ padding: 12, background: 'var(--bg-surface)', borderRadius: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Montant Encaissé</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--purple)' }}>{formatCurrency(totalPaye, devise)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid-2" style={{ gap: 20 }}>
@@ -220,22 +400,46 @@ export default function Statistiques() {
         </div>
       </div>
 
+      {/* Employee Performance Chart */}
+      {employeeStats.length > 0 && !filterEmploye && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-header">
+            <h3>Performance par employé (Kilos & Chiffre d'Affaires)</h3>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart
+              data={employeeStats.map(e => ({ name: e.name, Factures: e.nbFactures, Kilos: e.totalKilos, CA: e.totalCA }))}
+              margin={{ top: 5, right: 5, left: -10, bottom: 25 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => `${v}kg`} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
+              <Tooltip {...tooltipStyle} formatter={(v, name) => [name === 'CA' ? formatCurrency(v, devise) : (name === 'Kilos' ? `${v} kg` : `${v} fac.`), name]} />
+              <Bar yAxisId="left" dataKey="Kilos" fill="#3b82f6" radius={[4,4,0,0]} name="Kilos traités" />
+              <Bar yAxisId="right" dataKey="CA" fill="#8b5cf6" radius={[4,4,0,0]} name="Chiffre d'Affaires" />
+              <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-secondary)' }} iconType="circle" iconSize={7} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* Voyage Performance */}
       {computedVoyageStats.length > 0 && (
         <>
           <div className="card" style={{ marginTop: 20 }}>
             <div className="card-header">
-              <h3>Rentabilité par voyage</h3>
+              <h3>Rentabilité & Volume par voyage</h3>
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart
-                data={computedVoyageStats.map(v => ({ name: v.nom, Encaissé: v.totalEncaisse, Dépenses: v.totalDepenses, Bénéfice: v.benefice }))}
-                margin={{ top: 5, right: 5, left: -10, bottom: 30 }}
+                data={computedVoyageStats.map(v => ({ name: v.labelName, Encaissé: v.totalEncaisse, Dépenses: v.totalDepenses, Bénéfice: v.benefice, Kilos: v.totalKilosVoyage }))}
+                margin={{ top: 5, right: 5, left: -10, bottom: 35 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
                 <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} angle={-15} textAnchor="end" axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickFormatter={v => v >= 1000 ? `${v/1000}k` : v} axisLine={false} tickLine={false} />
-                <Tooltip {...tooltipStyle} formatter={v => [formatCurrency(v, devise), '']} />
+                <Tooltip {...tooltipStyle} formatter={(v, n) => [n === 'Kilos' ? `${v} kg` : formatCurrency(v, devise), n]} />
                 <Bar dataKey="Encaissé" fill="#22c55e" radius={[4,4,0,0]} />
                 <Bar dataKey="Dépenses" fill="#ef4444" radius={[4,4,0,0]} />
                 <Bar dataKey="Bénéfice" fill="#6366f1" radius={[4,4,0,0]} />
@@ -254,8 +458,9 @@ export default function Statistiques() {
                 <thead>
                   <tr>
                     <th>Voyage</th>
-                    <th>Date</th>
+                    <th>Date de départ</th>
                     <th>Factures</th>
+                    <th>Total Kilos</th>
                     <th>Encaissé</th>
                     <th>Dépenses</th>
                     <th>Bénéfice</th>
@@ -273,8 +478,9 @@ export default function Statistiques() {
                             {v.nom}
                           </div>
                         </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{v.dateDepart}</td>
+                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{v.dateDepart ? formatDate(v.dateDepart) : '-'}</td>
                         <td><span className="badge badge-info">{v.nbFactures}</span></td>
+                        <td style={{ fontWeight: 600, color: 'var(--brand)' }}>{v.totalKilosVoyage.toLocaleString('fr-FR')} kg</td>
                         <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(v.totalEncaisse, devise)}</td>
                         <td style={{ color: 'var(--danger)',  fontWeight: 600 }}>{formatCurrency(v.totalDepenses, devise)}</td>
                         <td style={{ color: v.benefice >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>{formatCurrency(v.benefice, devise)}</td>
@@ -293,3 +499,5 @@ export default function Statistiques() {
     </div>
   );
 }
+
+

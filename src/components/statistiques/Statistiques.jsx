@@ -82,7 +82,9 @@ export default function Statistiques() {
         const empName = `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase();
         if (creatorName && empName && creatorName === empName) matchName = true;
       }
-      if (!matchId && !matchName) return false;
+      
+      const hasCollectedPayment = f.paiements && f.paiements.some(p => p.userId === activeEmployeFilter);
+      if (!matchId && !matchName && !hasCollectedPayment) return false;
     }
     if (f.createdAt) {
       const d = new Date(f.createdAt);
@@ -114,7 +116,27 @@ export default function Statistiques() {
   });
 
   // Calculate dynamic stats from filtered data
-  const totalCA = filteredFactures.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
+  const totalCA = filteredFactures.reduce((s, f) => {
+    if (activeEmployeFilter) {
+      const isCreator = f.userId === activeEmployeFilter || f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter;
+      const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+      let matchName = false;
+      if (selectedUserObj && f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase();
+        if (creatorName && empName && creatorName === empName) matchName = true;
+      }
+      const isRealCreator = isCreator || matchName;
+      const empCollected = (f.paiements || []).filter(p => p.userId === activeEmployeFilter).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+      
+      if (isRealCreator) {
+        return s + Number(f.montantTotal || 0);
+      } else {
+        return s + empCollected; // Employee only processed the payment on this invoice
+      }
+    }
+    return s + Number(f.montantTotal || 0);
+  }, 0);
   
   const totalPaye = filteredFactures.reduce((s, f) => {
     if (activeEmployeFilter) {
@@ -123,7 +145,15 @@ export default function Statistiques() {
         return s + empPay;
       }
       const isCreator = f.userId === activeEmployeFilter || f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter;
-      return s + (isCreator ? Number(f.montantPaye || 0) : 0);
+      const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+      let matchName = false;
+      if (selectedUserObj && f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase();
+        if (creatorName && empName && creatorName === empName) matchName = true;
+      }
+      const isRealCreator = isCreator || matchName;
+      return s + (isRealCreator ? Number(f.montantPaye || 0) : 0);
     }
     return s + Number(f.montantPaye || 0);
   }, 0);
@@ -179,8 +209,29 @@ export default function Statistiques() {
     const d = new Date(f.createdAt);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (monthly[key]) {
-      monthly[key].ca += Number(f.montantTotal || 0);
-      monthly[key].paye += Number(f.montantPaye || 0);
+      if (activeEmployeFilter) {
+        const matchId = f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter || f.userId === activeEmployeFilter;
+        let matchName = false;
+        if (f.creePar) {
+          const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+          const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+          const empName = selectedUserObj ? `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase() : '';
+          matchName = (creatorName && empName && creatorName === empName);
+        }
+        const isRealCreator = matchId || matchName;
+        const empCollected = (f.paiements || []).filter(p => p.userId === activeEmployeFilter).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+        
+        monthly[key].ca += isRealCreator ? Number(f.montantTotal || 0) : empCollected;
+        
+        if (f.paiements && f.paiements.length > 0) {
+          monthly[key].paye += empCollected;
+        } else {
+          monthly[key].paye += isRealCreator ? Number(f.montantPaye || 0) : 0;
+        }
+      } else {
+        monthly[key].ca += Number(f.montantTotal || 0);
+        monthly[key].paye += Number(f.montantPaye || 0);
+      }
       monthly[key].kilos += Number(f.poidsTotal || 0);
     }
   });
@@ -191,7 +242,25 @@ export default function Statistiques() {
   const computedVoyageStats = allVoyages.map(v => {
     const facs = filteredFactures.filter(f => f.voyageId === v.id);
     const deps = filteredDepenses.filter(d => d.voyageId === v.id);
-    const totalEncaisse = facs.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+    
+    const totalEncaisse = facs.reduce((s, f) => {
+      if (activeEmployeFilter) {
+        if (f.paiements && f.paiements.length > 0) {
+          return s + f.paiements.filter(p => p.userId === activeEmployeFilter).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+        }
+        const matchId = f.creeParId === activeEmployeFilter || f.creePar?.id === activeEmployeFilter || f.userId === activeEmployeFilter;
+        let matchName = false;
+        if (f.creePar) {
+          const selectedUserObj = allUsers.find(u => u.id === activeEmployeFilter);
+          const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+          const empName = selectedUserObj ? `${selectedUserObj.prenom || ''} ${selectedUserObj.nom || ''}`.trim().toLowerCase() : '';
+          matchName = (creatorName && empName && creatorName === empName);
+        }
+        return s + ((matchId || matchName) ? Number(f.montantPaye || 0) : 0);
+      }
+      return s + Number(f.montantPaye || 0);
+    }, 0);
+    
     const totalDepenses = deps.reduce((s, d) => s + (Number(d.montant) * Number(d.quantite || 1)), 0);
     const totalKilosVoyage = facs.reduce((s, f) => s + Number(f.poidsTotal || 0), 0);
     return {
@@ -210,6 +279,10 @@ export default function Statistiques() {
     const facs = filteredFactures.filter(f => {
       const matchId = f.creeParId === u.id || f.creePar?.id === u.id || f.userId === u.id;
       if (matchId) return true;
+      
+      const hasCollectedPayment = f.paiements && f.paiements.some(p => p.userId === u.id);
+      if (hasCollectedPayment) return true;
+
       if (f.creePar) {
         const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
         const empName = `${u.prenom || ''} ${u.nom || ''}`.trim().toLowerCase();
@@ -217,8 +290,38 @@ export default function Statistiques() {
       }
       return false;
     });
-    const totalCAEmp = facs.reduce((s, f) => s + Number(f.montantTotal || 0), 0);
-    const totalPayeEmp = facs.reduce((s, f) => s + Number(f.montantPaye || 0), 0);
+    
+    const totalCAEmp = facs.reduce((s, f) => {
+      const matchId = f.creeParId === u.id || f.creePar?.id === u.id || f.userId === u.id;
+      let matchName = false;
+      if (f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${u.prenom || ''} ${u.nom || ''}`.trim().toLowerCase();
+        matchName = (creatorName && empName && creatorName === empName);
+      }
+      const isRealCreator = matchId || matchName;
+      const empCollected = (f.paiements || []).filter(p => p.userId === u.id).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+      
+      if (isRealCreator) return s + Number(f.montantTotal || 0);
+      return s + empCollected;
+    }, 0);
+    
+    const totalPayeEmp = facs.reduce((s, f) => {
+      if (f.paiements && f.paiements.length > 0) {
+        const empPay = f.paiements.filter(p => p.userId === u.id).reduce((sum, p) => sum + Number(p.montant || 0), 0);
+        return s + empPay;
+      }
+      const matchId = f.creeParId === u.id || f.creePar?.id === u.id || f.userId === u.id;
+      let matchName = false;
+      if (f.creePar) {
+        const creatorName = `${f.creePar.prenom || ''} ${f.creePar.nom || ''}`.trim().toLowerCase();
+        const empName = `${u.prenom || ''} ${u.nom || ''}`.trim().toLowerCase();
+        matchName = (creatorName && empName && creatorName === empName);
+      }
+      const isRealCreator = matchId || matchName;
+      return s + (isRealCreator ? Number(f.montantPaye || 0) : 0);
+    }, 0);
+    
     const totalKilosEmp = facs.reduce((s, f) => s + Number(f.poidsTotal || 0), 0);
     return {
       id: u.id,

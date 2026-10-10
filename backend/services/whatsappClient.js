@@ -164,7 +164,7 @@ class WhatsAppManager {
           qrMaxRetries: 10,
           webVersionCache: {
             type: 'remote',
-            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018949826-alpha.html',
+            remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
           },
           userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           puppeteer: {
@@ -386,7 +386,15 @@ class WhatsAppManager {
       throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
     const cleanPhone = phone.replace(/\D/g, '');
-    const chatId = `${cleanPhone}@c.us`;
+    let chatId = `${cleanPhone}@c.us`;
+    try {
+      const numberId = await clientData.client.getNumberId(cleanPhone);
+      if (numberId && numberId._serialized) {
+        chatId = numberId._serialized;
+      }
+    } catch (e) {
+      console.warn("getNumberId warning:", e.message);
+    }
     await clientData.client.sendMessage(chatId, message);
   }
 
@@ -396,10 +404,27 @@ class WhatsAppManager {
       throw new Error("Le client WhatsApp n'est pas connecté pour votre boutique.");
     }
     const cleanPhone = phone.replace(/\D/g, '');
-    const chatId = `${cleanPhone}@c.us`;
+    let chatId = `${cleanPhone}@c.us`;
+    try {
+      const numberId = await clientData.client.getNumberId(cleanPhone);
+      if (numberId && numberId._serialized) {
+        chatId = numberId._serialized;
+      }
+    } catch (e) {
+      console.warn("getNumberId warning:", e.message);
+    }
     
     const media = new MessageMedia('application/pdf', pdfBuffer.toString('base64'), filename);
-    await clientData.client.sendMessage(chatId, media, { caption });
+    try {
+      await clientData.client.sendMessage(chatId, media, { 
+        caption,
+        sendMediaAsDocument: true 
+      });
+    } catch (err) {
+      console.error("WhatsApp Media Send Warning, fallback to text notification:", err.message);
+      const fallbackText = `${caption ? caption + '\n\n' : ''}📄 *Votre reçu de facture (${filename}) est disponible.*`;
+      await clientData.client.sendMessage(chatId, fallbackText);
+    }
   }
 
   async destroyAll() {

@@ -184,7 +184,13 @@ export default function ReceiptModal({ facture, onClose, devise }) {
       toast('Facture envoyée avec succès sur WhatsApp !');
     } catch (err) {
       console.error(err);
-      toast(err.message || 'Échec de l\'envoi WhatsApp', 'error');
+      const msg = err.message || '';
+      if (msg.includes("n'est pas connecté") || msg.includes("Veuillez scanner")) {
+        toast("WhatsApp non connecté dans les Paramètres. Ouverture via WhatsApp...", "warning");
+        handleWhatsApp();
+      } else {
+        toast(msg || 'Échec de l\'envoi WhatsApp', 'error');
+      }
     } finally {
       setSendingWhatsapp(false);
     }

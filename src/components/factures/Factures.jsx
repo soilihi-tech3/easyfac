@@ -237,8 +237,36 @@ export default function Factures() {
         await updateFacture(editFacture.id, data);
         toast('Facture modifiée');
       } else {
-        await addFacture(data);
+        const created = await addFacture(data);
         toast('Facture créée avec succès');
+
+        // Automatic WhatsApp notification if phone is present
+        let phone = data.expediteur?.telephone || data.destinataire?.telephone || '';
+        phone = phone.replace(/\D/g, '');
+        if (phone) {
+          const lines = [
+            `*Nouvelle Facture — ${data.numero}*`,
+            `Bonjour ${data.expediteur?.prenom || ''} ${data.expediteur?.nom || ''},`,
+            `Votre facture *${data.numero}* a été enregistrée avec succès.`,
+            `*Montant Total :* ${formatCurrency(data.montantTotal, devise)}`,
+            `*Montant Payé :* ${formatCurrency(data.montantPaye, devise)}`,
+            (data.montantTotal - data.montantPaye > 0) ? `*Reste à Payer :* ${formatCurrency(data.montantTotal - data.montantPaye, devise)}` : '',
+            ``,
+            `Merci de votre confiance !\n*${entreprise?.nom || 'EASYFAC'}*`
+          ].filter(Boolean).join('\n');
+
+          const token = localStorage.getItem('token');
+          fetch(`${API_URL}/api/whatsapp/send-message`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ phone, message: lines })
+          }).then(res => {
+            if (res.ok) toast('Notification WhatsApp envoyée au client !', 'success');
+          }).catch(e => console.warn('Auto WhatsApp notice silent error:', e));
+        }
       }
       setShowModal(false);
       load();

@@ -58,9 +58,9 @@ export default function Parametres() {
     };
 
     fetchWaStatus();
-    // Intelligent adaptive polling: fast (5s) when pairing/QR scanning, slow (30s) otherwise
-    const isActivelyPairing = waStatus.status === 'INITIALIZING' || waStatus.status === 'QR_READY';
-    interval = setInterval(fetchWaStatus, isActivelyPairing ? 5000 : 30000);
+    // Fast real-time polling (1.5s) when initializing or waiting for QR code
+    const isActivelyPairing = waStatus.status === 'INITIALIZING' || waStatus.status === 'QR_READY' || waStatus.status === 'SAVED_SESSION';
+    interval = setInterval(fetchWaStatus, isActivelyPairing ? 1500 : 15000);
     return () => clearInterval(interval);
   }, [waStatus.status]);
 
@@ -150,6 +150,17 @@ export default function Parametres() {
         const data = await res.json();
         setWaStatus(data);
         toast('Génération du QR Code WhatsApp en cours...');
+        setTimeout(async () => {
+          try {
+            const pollRes = await fetch(`${API_URL}/api/whatsapp/status`, {
+              headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+            });
+            if (pollRes.ok) {
+              const pollData = await pollRes.json();
+              setWaStatus(pollData);
+            }
+          } catch (e) {}
+        }, 1200);
       }
     } catch (err) {
       toast('Erreur lors de la réinitialisation WhatsApp', 'error');
@@ -500,9 +511,12 @@ export default function Parametres() {
                         <div style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 700 }}>
                           ⏳ Initialisation du service WhatsApp en cours...
                         </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4, marginBottom: 10 }}>
                           Le QR Code va s'afficher d'ici quelques secondes (veuillez patienter).
                         </div>
+                        <button className="btn btn-secondary btn-sm" onClick={handleWaReconnect} style={{ margin: '0 auto' }}>
+                          🔄 Forcer la re-génération du QR Code
+                        </button>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>

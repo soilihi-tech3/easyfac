@@ -59,18 +59,23 @@ router.post('/send-invoice', upload.single('pdf'), async (req, res) => {
     const file = req.file;
 
     if (!phone || !file) {
-      return res.status(400).json({ error: "Numéro de téléphone ou fichier PDF manquant." });
+      return res.status(400).json({ error: "Numéro de téléphone ou fichier de reçu manquant." });
     }
 
-    await whatsappManager.sendPdf(
+    const isImage = file.mimetype?.includes('image') || file.originalname?.endsWith('.jpg') || file.originalname?.endsWith('.jpeg') || file.originalname?.endsWith('.png');
+    const mimetype = isImage ? (file.mimetype || 'image/jpeg') : 'application/pdf';
+    const filename = file.originalname || (isImage ? 'facture.jpg' : 'facture.pdf');
+
+    await whatsappManager.sendMedia(
       boutiqueId,
       phone, 
       file.buffer, 
-      'facture.pdf', 
-      'Bonjour, voici votre facture.'
+      mimetype,
+      filename, 
+      'Bonjour, voici votre reçu de facture.'
     );
 
-    res.json({ success: true, message: "Facture envoyée avec succès !" });
+    res.json({ success: true, message: "Reçu envoyé sur WhatsApp avec succès !" });
 
   } catch (error) {
     console.error("WhatsApp Error:", error.message);

@@ -767,10 +767,6 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
 
   const renderProfessionnelTemplate = () => (
     <div style={{ padding: 0 }}>
-      {/* Decorative corner triangles */}
-      <div style={{ position: 'absolute', top: 0, right: 0, width: 120, height: 120, background: '#0b57d0', clipPath: 'polygon(100% 0, 100% 100%, 0 0)', zIndex: 1 }}></div>
-      <div style={{ position: 'absolute', bottom: 0, left: 0, width: 120, height: 120, background: '#0b57d0', clipPath: 'polygon(0 0, 0 100%, 100% 100%)', zIndex: 1 }}></div>
-
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '30px 40px 10px 40px', position: 'relative', zIndex: 2 }}>
         {/* Left Logo & Company Name / Agencies */}
@@ -978,16 +974,14 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 40px 30px 40px', position: 'relative', zIndex: 2 }}>
         {(entreprise.cachet || entreprise.signature) && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', marginBottom: 4 }}>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'center', justifyContent: 'center' }}>
               {entreprise.signature && (
-                <img src={entreprise.signature} alt="Signature" style={{ maxWidth: 100, maxHeight: 60, objectFit: 'contain' }} />
+                <img src={entreprise.signature} alt="Signature" style={{ maxWidth: 130, maxHeight: 85, objectFit: 'contain' }} />
               )}
               {entreprise.cachet && (
-                <img src={entreprise.cachet} alt="Cachet" style={{ maxWidth: 100, maxHeight: 65, objectFit: 'contain' }} />
+                <img src={entreprise.cachet} alt="Cachet" style={{ maxWidth: 180, maxHeight: 120, objectFit: 'contain' }} />
               )}
             </div>
-            <div style={{ width: 180, height: 1.5, background: '#000' }}></div>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Signature & Cachet</span>
           </div>
         )}
       </div>

@@ -264,11 +264,11 @@ export default function Factures() {
   const handleDelete = async (id) => {
     try {
       await deleteFacture(id);
-      toast('Facture supprimée', 'success');
+      toast('Facture supprimée avec succès', 'success');
       load();
       setConfirmDelete(null);
     } catch (err) {
-      toast('Erreur lors de la suppression', 'error');
+      toast(err.message || 'Erreur lors de la suppression', 'error');
     }
   };
 

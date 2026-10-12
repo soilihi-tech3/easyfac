@@ -60,6 +60,10 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
   const statColor   = STATUT_COLOR[facture.statut] || '#94a3b8';
   const articles    = (facture.articles || []).filter(a => a.nom || a.poids);
 
+  const articlesTotal = articles.reduce((sum, a) => sum + (parseFloat(a.total) || 0), 0);
+  const fretTotal = parseFloat(facture.fraisFret) || 0;
+  const hasArticlesTotal = articlesTotal > 0;
+
   const handlePrint = () => {
     window.print();
   };
@@ -69,7 +73,9 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
       `*Facture ${facture.numero}*`,
       `Expéditeur: ${facture.expediteur?.prenom} ${facture.expediteur?.nom}`,
       `Destinataire: ${facture.destinataire?.prenom} ${facture.destinataire?.nom}`,
-      articles.map(a => `  • ${a.nom} — ${a.poids}kg × ${formatCurrency(a.prixKg, devise)} = ${formatCurrency(a.total, devise)}`).join('\n'),
+      articles.map(a => `  • ${a.nom} — ${a.poids ? `${a.poids}kg × ` : ''}${a.quantite > 1 ? `Qté: ${a.quantite} × ` : ''}${formatCurrency(a.prixUnitaire || a.prixKg, devise)} = ${formatCurrency(a.total, devise)}`).join('\n'),
+      hasArticlesTotal ? `Total articles: ${formatCurrency(articlesTotal, devise)}` : '',
+      fretTotal > 0 ? `Frais fret: ${formatCurrency(fretTotal, devise)}` : '',
       `Montant total: ${formatCurrency(facture.montantTotal, devise)}`,
       `Payé: ${formatCurrency(facture.montantPaye, devise)}`,
       facture.montantTotal - facture.montantPaye > 0
@@ -398,7 +404,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
 
             {/* Totals Section */}
             <tr style={{ borderBottom: '1px solid #000' }}>
-              <td colSpan={2} rowSpan={facture.montantTotal - facture.montantPaye > 0 ? 3 : 2} style={{ padding: '10px 12px', borderRight: '2px solid #000', verticalAlign: 'top' }}>
+              <td colSpan={2} rowSpan={(facture.montantTotal - facture.montantPaye > 0 ? 3 : 2) + (hasArticlesTotal ? 1 : 0)} style={{ padding: '10px 12px', borderRight: '2px solid #000', verticalAlign: 'top' }}>
                 {/* Statut & Mode */}
                 <div style={{ marginBottom: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700 }}>STATUT: </span>
@@ -440,13 +446,36 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                   </div>
                 )}
               </td>
-              <td style={{ padding: '8px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 11, fontWeight: 700 }}>
-                MONTANT TOTAL
-              </td>
-              <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 14, fontWeight: 800 }}>
-                {formatCurrency(facture.montantTotal, devise)}
-              </td>
+              {hasArticlesTotal ? (
+                <>
+                  <td style={{ padding: '8px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#475569' }}>
+                    TOTAL ARTICLES
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>
+                    {formatCurrency(articlesTotal, devise)}
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td style={{ padding: '8px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 11, fontWeight: 700 }}>
+                    MONTANT TOTAL
+                  </td>
+                  <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 14, fontWeight: 800 }}>
+                    {formatCurrency(facture.montantTotal, devise)}
+                  </td>
+                </>
+              )}
             </tr>
+            {hasArticlesTotal && (
+              <tr style={{ borderBottom: '1px solid #000', background: '#f8fafc' }}>
+                <td style={{ padding: '8px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 11, fontWeight: 800 }}>
+                  MONTANT TOTAL
+                </td>
+                <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: 14, fontWeight: 800 }}>
+                  {formatCurrency(facture.montantTotal, devise)}
+                </td>
+              </tr>
+            )}
             <tr style={{ borderBottom: '1px solid #000' }}>
               <td style={{ padding: '8px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 11, fontWeight: 700 }}>
                 MONTANT PAYÉ
@@ -512,7 +541,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {entreprise.logo && (
               <img src={entreprise.logo} alt="Logo" style={{ maxHeight: 45, maxWidth: 100, objectFit: 'contain' }} />
             )}
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: '#eab308', margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: accentColor, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {entreprise.nom || 'EASYFAC'}
             </h2>
           </div>
@@ -520,7 +549,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
           <div style={{ display: 'flex', gap: 20, fontSize: 10, color: '#e2e8f0', textAlign: 'left', lineHeight: 1.4, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 2 }} className="agencies-inner-flex">
             {/* 1. SÉNÉGAL */}
             <div style={{ minWidth: '130px' }} className="agency-block">
-              <span style={{ color: '#eab308', fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+              <span style={{ color: accentColor, fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                 AGENCE SÉNÉGAL
               </span>
               <div style={{ fontWeight: 800, color: '#ffffff', fontSize: 10.5, lineHeight: 1.4 }}>
@@ -536,7 +565,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {/* 2. COMORES */}
             {(entreprise.lieuComores || entreprise.telComores1) && (
               <div style={{ minWidth: '130px' }} className="agency-block">
-                <span style={{ color: '#eab308', fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+                <span style={{ color: accentColor, fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                   AGENCE COMORES
                 </span>
                 <div style={{ fontWeight: 800, color: '#ffffff', fontSize: 10.5, lineHeight: 1.4 }}>
@@ -553,7 +582,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {/* 3. AUTRE */}
             {(entreprise.lieuAutre || entreprise.telAutre1) && (
               <div style={{ minWidth: '130px' }} className="agency-block">
-                <span style={{ color: '#eab308', fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+                <span style={{ color: accentColor, fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5, letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                   {entreprise.nomAutre || 'AUTRE ADRESSE'}
                 </span>
                 <div style={{ fontWeight: 800, color: '#ffffff', fontSize: 10.5, lineHeight: 1.4 }}>
@@ -628,7 +657,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ fontSize: 11, textTransform: 'uppercase', fontWeight: 800 }}>
-              <th style={{ background: '#eab308', color: '#000', padding: '8px 12px', borderTopLeftRadius: '4px', borderBottomLeftRadius: '4px' }}>
+              <th style={{ background: accentColor, color: '#ffffff', padding: '8px 12px', borderTopLeftRadius: '4px', borderBottomLeftRadius: '4px' }}>
                 Description de l'article / Voyage
               </th>
               <th style={{ background: '#1e1e1e', color: '#fff', padding: '8px 12px', textAlign: 'center', width: '50px' }}>
@@ -693,11 +722,11 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
               <div style={{ color: '#ef4444' }}><strong style={{ color: '#ef4444' }}>Échéance :</strong> {formatDate(facture.dateLimite)}</div>
             )}
             {facture.payerComores === 1 && (
-              <div style={{ marginTop: 6, padding: 8, border: '1px solid #eab308', borderRadius: 4, background: '#fefbeb', maxWidth: '85%' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: '#d97706', display: 'block', marginBottom: 2 }}>RÈGLEMENT AUX COMORES :</span>
+              <div style={{ marginTop: 6, padding: 8, border: `1px solid ${accentColor}`, borderRadius: 4, background: '#fefbeb', maxWidth: '85%' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: accentColor, display: 'block', marginBottom: 2 }}>RÈGLEMENT AUX COMORES :</span>
                 <div style={{ fontSize: 11, fontWeight: 700 }}>Solde Comores : {formatCurrency(facture.montantComores, devise)}</div>
                 {devise !== 'KMF' && (
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#d97706', marginTop: 2 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor, marginTop: 2 }}>
                     Soit : {formatCurrency(convertCurrency(facture.montantComores, devise, 'KMF'), 'KMF')}
                   </div>
                 )}
@@ -710,6 +739,12 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
         <div style={{ width: '45%' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <tbody>
+              {hasArticlesTotal && (
+                <tr>
+                  <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Total Articles :</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(articlesTotal, devise)}</td>
+                </tr>
+              )}
               <tr>
                 <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Sous-total :</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(facture.montantTotal, devise)}</td>
@@ -725,8 +760,8 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 </tr>
               )}
               
-              {/* Gold grand total banner */}
-              <tr style={{ background: '#eab308', color: '#000', fontSize: 14 }}>
+              {/* Grand total banner */}
+              <tr style={{ background: accentColor, color: '#ffffff', fontSize: 14 }}>
                 <td style={{ padding: '8px 12px', fontWeight: 800, borderTopLeftRadius: '4px', borderBottomLeftRadius: '4px', textTransform: 'uppercase' }}>
                   Total :
                 </td>
@@ -775,14 +810,14 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {entreprise.logo && (
               <img src={entreprise.logo} alt="Logo" style={{ maxHeight: 40, maxWidth: 100, objectFit: 'contain' }} />
             )}
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: '#0b57d0', margin: 0, textTransform: 'uppercase' }}>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: accentColor, margin: 0, textTransform: 'uppercase' }}>
               {entreprise.nom || 'EASYFAC'}
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 24, fontSize: 11, color: '#475569', lineHeight: 1.4, marginTop: 8, flexWrap: 'wrap' }} className="agencies-inner-flex">
             {/* 1. SÉNÉGAL */}
             <div style={{ minWidth: '130px' }} className="agency-block">
-              <strong style={{ color: '#0b57d0', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+              <strong style={{ color: accentColor, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                 AGENCE SÉNÉGAL
               </strong>
               <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 11, lineHeight: 1.4 }}>
@@ -798,7 +833,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {/* 2. COMORES */}
             {(entreprise.lieuComores || entreprise.telComores1) && (
               <div style={{ minWidth: '130px' }} className="agency-block">
-                <strong style={{ color: '#0b57d0', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+                <strong style={{ color: accentColor, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                   AGENCE COMORES
                 </strong>
                 <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 11, lineHeight: 1.4 }}>
@@ -815,7 +850,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             {/* 3. AUTRE */}
             {(entreprise.lieuAutre || entreprise.telAutre1) && (
               <div style={{ minWidth: '130px' }} className="agency-block">
-                <strong style={{ color: '#0b57d0', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
+                <strong style={{ color: accentColor, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: 3 }}>
                   {entreprise.nomAutre || 'AUTRE ADRESSE'}
                 </strong>
                 <div style={{ fontWeight: 800, color: '#0f172a', fontSize: 11, lineHeight: 1.4 }}>
@@ -834,10 +869,10 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
 
       {/* Title & Customer section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 40px', alignItems: 'flex-start', position: 'relative', zIndex: 2 }}>
-        {/* Left: Blue Invoice block */}
+        {/* Left: Invoice block */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{
-            background: '#0b57d0',
+            background: accentColor,
             color: '#ffffff',
             fontFamily: "'Space Grotesk', sans-serif",
             fontSize: 22,
@@ -845,7 +880,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             letterSpacing: '0.1em',
             padding: '8px 24px',
             borderRadius: '4px',
-            boxShadow: '0 4px 6px -1px rgba(11,87,208,0.2)',
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.15)',
             alignSelf: 'flex-start'
           }}>
             FACTURE
@@ -861,14 +896,14 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
         {/* Right Client Info */}
         <div style={{ display: 'flex', gap: 30, textAlign: 'left', fontSize: 11.5, lineHeight: 1.4 }}>
           <div>
-            <span style={{ color: '#0b57d0', fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5 }}>Expéditeur :</span>
+            <span style={{ color: accentColor, fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5 }}>Expéditeur :</span>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 2 }}>
               {facture.expediteur?.prenom} {facture.expediteur?.nom}
             </div>
             {facture.expediteur?.telephone && <div style={{ color: '#475569', fontSize: 11.5 }}>Tél: {facture.expediteur.telephone}</div>}
           </div>
           <div>
-            <span style={{ color: '#0b57d0', fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5 }}>Destinataire :</span>
+            <span style={{ color: accentColor, fontWeight: 800, textTransform: 'uppercase', fontSize: 9.5 }}>Destinataire :</span>
             <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a', marginTop: 2 }}>
               {facture.destinataire?.prenom} {facture.destinataire?.nom}
             </div>
@@ -881,7 +916,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
       <div style={{ padding: '0 40px', marginBottom: 15, position: 'relative', zIndex: 2 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ background: '#0b57d0', color: '#ffffff', fontSize: 11.5, textTransform: 'uppercase', fontWeight: 800 }}>
+            <tr style={{ background: accentColor, color: '#ffffff', fontSize: 11.5, textTransform: 'uppercase', fontWeight: 800 }}>
               <th style={{ padding: '10px 12px', color: '#ffffff', borderTopLeftRadius: '4px' }}>Description de l'article</th>
               <th style={{ padding: '10px 12px', color: '#ffffff', textAlign: 'center', width: '50px' }}>Qté</th>
               <th style={{ padding: '10px 12px', color: '#ffffff', textAlign: 'right', width: '120px' }}>Prix</th>
@@ -894,7 +929,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{a.nom}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'center', color: '#475569' }}>{a.quantite || 1}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: '#475569' }}>{formatCurrency(a.prixUnitaire, devise)}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: '#0b57d0' }}>{formatCurrency(a.total, devise)}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: accentColor }}>{formatCurrency(a.total, devise)}</td>
               </tr>
             ))}
             
@@ -906,7 +941,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 </td>
                 <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'center', color: '#475569' }}>1</td>
                 <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: '#475569' }}>{formatCurrency(facture.prixKg, devise)}/kg</td>
-                <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: '#0b57d0' }}>{formatCurrency(facture.fraisFret, devise)}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: accentColor }}>{formatCurrency(facture.fraisFret, devise)}</td>
               </tr>
             )}
           </tbody>
@@ -917,7 +952,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 40px', alignItems: 'flex-start', marginBottom: 20, position: 'relative', zIndex: 2 }}>
         {/* Left: Payment Method */}
         <div style={{ width: '50%', fontSize: 11.5 }}>
-          <span style={{ color: '#0b57d0', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Mode de règlement :</span>
+          <span style={{ color: accentColor, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>Mode de règlement :</span>
           <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div><strong style={{ color: '#475569' }}>Statut :</strong> <span style={{ fontWeight: 800, color: statColor }}>{STATUT_MAP[facture.statut]}</span></div>
             <div><strong style={{ color: '#475569' }}>Mode de paiement :</strong> <span style={{ fontWeight: 600 }}>{MODE_MAP[facture.modePaiement] || 'Cash'}</span></div>
@@ -925,11 +960,11 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
               <div style={{ color: '#ef4444' }}><strong style={{ color: '#ef4444' }}>Date d'échéance :</strong> {formatDate(facture.dateLimite)}</div>
             )}
             {facture.payerComores === 1 && (
-              <div style={{ marginTop: 6, padding: 8, border: '1px solid #0b57d0', borderRadius: 4, background: '#f0f6ff', maxWidth: '85%' }}>
-                <span style={{ fontSize: 9, fontWeight: 800, color: '#0b57d0', display: 'block', marginBottom: 2 }}>RÈGLEMENT AUX COMORES :</span>
+              <div style={{ marginTop: 6, padding: 8, border: `1px solid ${accentColor}`, borderRadius: 4, background: '#f0f6ff', maxWidth: '85%' }}>
+                <span style={{ fontSize: 9, fontWeight: 800, color: accentColor, display: 'block', marginBottom: 2 }}>RÈGLEMENT AUX COMORES :</span>
                 <div style={{ fontSize: 11, fontWeight: 700 }}>Solde Comores : {formatCurrency(facture.montantComores, devise)}</div>
                 {devise !== 'KMF' && (
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#0b57d0', marginTop: 2 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor, marginTop: 2 }}>
                     Soit : {formatCurrency(convertCurrency(facture.montantComores, devise, 'KMF'), 'KMF')}
                   </div>
                 )}
@@ -938,10 +973,16 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
           </div>
         </div>
         
-        {/* Right Totals with Blue Grand Total block */}
+        {/* Right Totals with Grand Total block */}
         <div style={{ width: '40%' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <tbody>
+              {hasArticlesTotal && (
+                <tr>
+                  <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Total Articles :</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(articlesTotal, devise)}</td>
+                </tr>
+              )}
               <tr>
                 <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Sous-total :</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(facture.montantTotal, devise)}</td>
@@ -957,7 +998,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 </tr>
               )}
               
-              <tr style={{ background: '#0b57d0', color: '#ffffff', fontSize: 13.5 }}>
+              <tr style={{ background: accentColor, color: '#ffffff', fontSize: 13.5 }}>
                 <td style={{ padding: '8px 12px', fontWeight: 800, borderTopLeftRadius: '4px', borderBottomLeftRadius: '4px' }}>
                   TOTAL FACTURÉ :
                 </td>

@@ -1321,18 +1321,24 @@ app.delete('/api/factures/:id', async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // Verify if existing invoice is already paid
+    // Allow Admin to delete any invoice even if paid, but block non-admin from deleting paid invoices
+    const isAdmin = req.user && req.user.role === 'admin';
     const [existingFactures] = await connection.query('SELECT statut, montantTotal, montantPaye FROM factures WHERE id = ?', [req.params.id]);
     if (existingFactures.length > 0) {
       const ef = existingFactures[0];
       const wasPaid = ef.statut === 'paye' || ef.statut === 'Payée' || (Number(ef.montantPaye) >= Number(ef.montantTotal) && Number(ef.montantTotal) > 0);
-      if (wasPaid) {
+      if (wasPaid && !isAdmin) {
         await connection.rollback();
-        return res.status(400).json({ error: "Une facture déjà payée ne peut pas être supprimée." });
+        return res.status(403).json({ error: "Une facture déjà payée ne peut être supprimée que par un administrateur." });
       }
     }
     
-    // 1. Delete associated articles first to prevent MySQL foreign key constraint failure
+    // 1. Delete associated payments and articles to prevent MySQL foreign key constraint failure
+    try {
+      await connection.query('DELETE FROM facture_paiements WHERE factureId = ?', [req.params.id]);
+    } catch (e) {
+      // Ignore if table does not exist
+    }
     await connection.query('DELETE FROM facture_articles WHERE factureId = ?', [req.params.id]);
     if (req.user.boutique_id) {
       await connection.query('DELETE FROM factures WHERE id = ? AND (boutique_id = ? OR boutique_id IS NULL)', [req.params.id, req.user.boutique_id]);

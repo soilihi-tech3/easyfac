@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye, Megaphone, FileImage, RotateCcw, LogIn, LogOut, Calendar } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Shield, Plane, Mail, User, Lock, Search, FileText, Check, Truck, CreditCard, Users as UsersIcon, TrendingDown, Eye, EyeOff, Megaphone, FileImage, RotateCcw, LogIn, LogOut, Calendar } from 'lucide-react';
 import Pagination from '../common/Pagination';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -48,6 +48,7 @@ export default function Users() {
   const [activityUser, setActivityUser] = useState(null);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
   const { token, user: currentUser } = useAuth();
   const { refresh } = useApp();
 
@@ -241,6 +242,7 @@ export default function Users() {
   const closeModal = () => {
     setShowModal(false);
     setEditingUser(null);
+    setShowPassword(false);
   };
 
   // Helper to generate a unique, colorful premium HSL gradient avatar based on hashing user names
@@ -585,8 +587,35 @@ export default function Users() {
                 <div className="form-group col-span-2">
                   <label className="form-label" style={{ fontWeight: 600, fontSize: 12.5 }}>Mot de passe {editingUser && '(Laisser vide pour ne pas modifier)'}</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)' }}><Lock size={14} /></span>
-                    <input type="password" className="form-input" required={!editingUser} value={form.password} onChange={e => setForm({...form, password: e.target.value})} placeholder="••••••••" style={{ paddingLeft: 38, height: 42 }} />
+                    <span style={{ position: 'absolute', left: 14, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', pointerEvents: 'none' }}><Lock size={14} /></span>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-input"
+                      required={!editingUser}
+                      value={form.password}
+                      onChange={e => setForm({...form, password: e.target.value})}
+                      placeholder="••••••••"
+                      style={{ paddingLeft: 38, paddingRight: 42, height: 42 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute',
+                        right: 12,
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 4
+                      }}
+                      title={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 

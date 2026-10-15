@@ -404,6 +404,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
             <span style={{ fontSize: 10, fontWeight: 700 }}>DESTINATAIRE:</span>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{facture.destinataire?.prenom} {facture.destinataire?.nom}</div>
             {facture.destinataire?.telephone && <div style={{ fontSize: 12 }}>Tél: {facture.destinataire.telephone}</div>}
+            {facture.destinataire?.telephone2 && <div style={{ fontSize: 12 }}>Tél 2: {facture.destinataire.telephone2}</div>}
           </div>
         </div>
       </div>
@@ -674,6 +675,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
               {facture.destinataire?.prenom} {facture.destinataire?.nom}
             </div>
             {facture.destinataire?.telephone && <div style={{ color: '#475569', fontSize: 11.5 }}>Tél: {facture.destinataire.telephone}</div>}
+            {facture.destinataire?.telephone2 && <div style={{ color: '#475569', fontSize: 11.5 }}>Tél 2: {facture.destinataire.telephone2}</div>}
           </div>
         </div>
         
@@ -959,6 +961,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
               {facture.destinataire?.prenom} {facture.destinataire?.nom}
             </div>
             {facture.destinataire?.telephone && <div style={{ color: '#475569', fontSize: 11.5 }}>Tél: {facture.destinataire.telephone}</div>}
+            {facture.destinataire?.telephone2 && <div style={{ color: '#475569', fontSize: 11.5 }}>Tél 2: {facture.destinataire.telephone2}</div>}
           </div>
         </div>
       </div>

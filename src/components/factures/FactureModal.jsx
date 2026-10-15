@@ -188,7 +188,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   } : {
     numero: '',
     expediteur: { nom: '', prenom: '', telephone: '' },
-    destinataire: { nom: '', prenom: '', telephone: '' },
+    destinataire: { nom: '', prenom: '', telephone: '', telephone2: '' },
     articles: [emptyArticle(globalPrixKg)],
     montantTotal: 0,
     montantPaye: 0,
@@ -420,9 +420,9 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     const color = isPoids ? '#f59e0b' : '#22c55e';
     const tint = isPoids ? 'rgba(245,158,11,' : 'rgba(34,197,94,';
     const Icon = isPoids ? Scale : Banknote;
-    // Colonnes : Produit | Qté | Coût unit. | Val. (affichée) | Supprimer
-    const cols = '2fr 70px 1fr 1fr 34px';
-    const lbl = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' };
+    // Colonnes : Article | Qté | P.U | Total | Supprimer
+    const cols = '3fr 48px 72px 72px 30px';
+    const lbl = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap' };
     const sTotal = calcSectionTotal(s);
     const poidsVal = parseFloat(s.poids) || 0;
     const prixKgVal = parseFloat(s.prixKg) || 0;
@@ -517,25 +517,27 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
 
         {/* ── Lignes produits ── */}
         {!s.collapsed && (
-          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
-              <span style={lbl}>Produit</span>
-              <span style={lbl}>Qté</span>
-              <span style={lbl}>Prix unit. ({devise})</span>
-              <span style={{ ...lbl, textAlign: 'right' }}>{isPoids ? 'Val. déclarée' : 'Total'}</span>
+          <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center', paddingBottom: 4 }}>
+              <span style={lbl}>Article</span>
+              <span style={{ ...lbl, textAlign: 'center' }}>Qté</span>
+              <span style={{ ...lbl, textAlign: 'right' }}>P.U</span>
+              <span style={{ ...lbl, textAlign: 'right' }}>Total</span>
               <span />
             </div>
             {s.produits.map(p => (
-              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, alignItems: 'center' }}>
-                <input className="form-input" placeholder="Nom du produit" value={p.nom}
-                  onChange={e => updateProduit(s.id, p.id, 'nom', e.target.value)} />
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 6, alignItems: 'center' }}>
+                <input className="form-input" placeholder="Produit" value={p.nom}
+                  onChange={e => updateProduit(s.id, p.id, 'nom', e.target.value)}
+                  style={{ padding: '6px 8px', fontSize: 13 }} />
                 <input className="form-input" type="number" min="1" value={p.quantite}
-                  onChange={e => updateProduit(s.id, p.id, 'quantite', e.target.value)} />
+                  onChange={e => updateProduit(s.id, p.id, 'quantite', e.target.value)}
+                  style={{ padding: '6px 4px', fontSize: 13, textAlign: 'center' }} />
                 <input className="form-input" type="number" min="0" placeholder="0" value={p.prixUnitaire}
-                  onChange={e => updateProduit(s.id, p.id, 'prixUnitaire', e.target.value)} />
-                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: isPoids ? 'var(--text-muted)' : 'var(--text)' }}>
+                  onChange={e => updateProduit(s.id, p.id, 'prixUnitaire', e.target.value)}
+                  style={{ padding: '6px 4px', fontSize: 13, textAlign: 'right' }} />
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 12.5, color: isPoids ? 'var(--text-muted)' : 'var(--text)', lineHeight: 1.2 }}>
                   {formatCurrency(calcProduitAffiche(p), devise)}
-                  {isPoids && <span style={{ fontSize: 10, display: 'block', fontWeight: 400 }}>déclaré</span>}
                 </span>
                 <button type="button" className="btn-icon danger" onClick={() => removeProduit(s.id, p.id)} title="Supprimer"><Trash2 size={13} /></button>
               </div>
@@ -727,6 +729,52 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                         placeholder="Numéro sans le code"
                       />
                     </div>
+                    {/* Bouton 2e numéro */}
+                    {!form.destinataire?.telephone2 ? (
+                      <button
+                        type="button"
+                        onClick={() => updateDest('telephone2', '+221')}
+                        style={{
+                          marginTop: 6, background: 'none', border: 'none', padding: 0,
+                          fontSize: 12, color: 'var(--info)', fontWeight: 600, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        <Plus size={12} /> Ajouter un 2ᵉ numéro
+                      </button>
+                    ) : (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>2ᵉ numéro</span>
+                          <button
+                            type="button"
+                            onClick={() => updateDest('telephone2', '')}
+                            style={{ background: 'none', border: 'none', padding: 0, fontSize: 11, color: 'var(--danger)', cursor: 'pointer', fontWeight: 600 }}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex' }}>
+                          <select
+                            className="form-input"
+                            style={{ width: '90px', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, background: 'var(--bg-surface)', paddingLeft: 8 }}
+                            value={extractPhoneParts(form.destinataire?.telephone2).prefix}
+                            onChange={e => updateDest('telephone2', e.target.value + extractPhoneParts(form.destinataire?.telephone2).number)}
+                          >
+                            <option value="+221">+221</option>
+                            <option value="+269">+269</option>
+                            <option value="+33">+33</option>
+                          </select>
+                          <input
+                            className="form-input"
+                            style={{ flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }}
+                            value={extractPhoneParts(form.destinataire?.telephone2).number}
+                            onChange={e => updateDest('telephone2', extractPhoneParts(form.destinataire?.telephone2).prefix + e.target.value.replace(/\D/g, ''))}
+                            placeholder="2ᵉ numéro sans le code"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

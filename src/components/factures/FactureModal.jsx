@@ -428,71 +428,96 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     const prixKgVal = parseFloat(s.prixKg) || 0;
     return (
       <div key={s.id} style={{ border: `1px solid ${tint}0.3)`, borderRadius: 14, overflow: 'hidden', background: 'var(--bg-surface)' }}>
-        {/* En-tête de section */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: `${tint}0.08)`, borderBottom: `1px solid ${tint}0.2)`, flexWrap: 'wrap' }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* ── Titre + total + actions ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: `${tint}0.08)`, borderBottom: `1px solid ${tint}0.18)` }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Icon size={15} />
           </div>
-          <span style={{ fontWeight: 800, fontSize: 13.5 }}>{isPoids ? 'Tarif au poids' : 'Prix direct'}</span>
-          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-            {s.produits.filter(p => p.nom).length} produit(s)
-          </span>
-          {!isPoids && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Prix taxé :</span>
-              <input className="form-input" type="number" min="0" placeholder={String(calcSectionArticles(s) || 'Montant')} value={s.prixDirect || ''}
-                onChange={e => updateSection(s.id, 'prixDirect', e.target.value)}
-                style={{ width: 120, padding: '6px 10px', borderColor: errors.sectionIds?.includes(s.id) && !(parseFloat(s.prixDirect) > 0) ? 'var(--danger)' : '#22c55e' }} />
-              <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>{devise}</span>
-            </div>
-          )}
-          {isPoids && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              {/* Prix/kg */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>1 kg =</span>
-                <input className="form-input" type="number" min="0" placeholder="Prix/kg" value={s.prixKg}
-                  onChange={e => updateSection(s.id, 'prixKg', e.target.value)}
-                  style={{ width: 100, padding: '6px 10px' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>{devise}</span>
-              </div>
-              {/* Poids total de la section */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Poids lot :</span>
-                <input className="form-input" type="number" min="0" step="0.1" placeholder="0" value={s.poids}
-                  onChange={e => updateSection(s.id, 'poids', e.target.value)}
-                  style={{ width: 80, padding: '6px 10px', borderColor: errors.sectionIds?.includes(s.id) && !(parseFloat(s.poids) > 0) ? 'var(--danger)' : undefined }} />
-                <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>kg</span>
-              </div>
-              {/* Formule de calcul */}
-              {poidsVal > 0 && prixKgVal > 0 && (
-                <span style={{ fontSize: 12, color: color, fontWeight: 700 }}>
-                  {poidsVal} kg × {formatCurrency(prixKgVal, devise)}/kg
-                </span>
-              )}
-            </div>
-          )}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{formatCurrency(sTotal, devise)}</span>
-            <button type="button" className="btn-icon" title={s.collapsed ? 'Afficher la section' : 'Masquer la section'}
-              onClick={() => updateSection(s.id, 'collapsed', !s.collapsed)}>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
+            <span style={{ fontWeight: 800, fontSize: 13.5 }}>{isPoids ? 'Tarif au poids' : 'Prix direct'}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.produits.filter(p => p.nom).length} produit(s)</span>
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <span style={{ fontWeight: 900, color, fontFamily: 'var(--font-display)', fontSize: 15 }}>{formatCurrency(sTotal, devise)}</span>
+            <button type="button" className="btn-icon" title={s.collapsed ? 'Afficher' : 'Masquer'} onClick={() => updateSection(s.id, 'collapsed', !s.collapsed)}>
               {s.collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             </button>
-            <button type="button" className="btn-icon danger" title="Supprimer la section" onClick={() => removeSection(s.id)}><Trash2 size={13} /></button>
+            <button type="button" className="btn-icon danger" title="Supprimer" onClick={() => removeSection(s.id)}><Trash2 size={13} /></button>
           </div>
         </div>
 
-        {/* Lignes produits */}
+        {/* ── Saisie : chips alignés côte-à-côte ── */}
+        <div style={{ padding: '10px 14px', background: `${tint}0.04)`, borderBottom: `1px solid ${tint}0.12)` }}>
+          {isPoids ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Ligne chips */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {/* Chip Prix/kg */}
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--bg-surface)', border: `1.5px solid ${tint}0.3)`,
+                  borderRadius: 10, padding: '8px 12px', minWidth: 0,
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>1 kg =</span>
+                  <input
+                    type="number" min="0" placeholder="6000" value={s.prixKg}
+                    onChange={e => updateSection(s.id, 'prixKg', e.target.value)}
+                    style={{
+                      flex: 1, minWidth: 0, border: 'none', background: 'transparent',
+                      fontSize: 15, fontWeight: 700, color: 'var(--text)', outline: 'none', textAlign: 'right',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, fontWeight: 700, color, whiteSpace: 'nowrap' }}>{devise}</span>
+                </div>
+                {/* Chip Poids lot */}
+                <div style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--bg-surface)', minWidth: 0,
+                  border: `1.5px solid ${errors.sectionIds?.includes(s.id) && !(parseFloat(s.poids) > 0) ? 'var(--danger)' : tint + '0.3)'}`,
+                  borderRadius: 10, padding: '8px 12px',
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Poids</span>
+                  <input
+                    type="number" min="0" step="0.1" placeholder="0" value={s.poids}
+                    onChange={e => updateSection(s.id, 'poids', e.target.value)}
+                    style={{
+                      flex: 1, minWidth: 0, border: 'none', background: 'transparent',
+                      fontSize: 15, fontWeight: 700, color: 'var(--text)', outline: 'none', textAlign: 'right',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>kg</span>
+                  <span style={{ color: 'var(--danger)', fontWeight: 900, fontSize: 12 }}>*</span>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>Prix taxé :</span>
+              <div style={{
+                flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+                background: 'var(--bg-surface)',
+                border: `1.5px solid ${errors.sectionIds?.includes(s.id) && !(parseFloat(s.prixDirect) > 0) ? 'var(--danger)' : '#22c55e'}`,
+                borderRadius: 10, padding: '8px 12px',
+              }}>
+                <input
+                  type="number" min="0" placeholder={String(calcSectionArticles(s) || 'Montant')} value={s.prixDirect || ''}
+                  onChange={e => updateSection(s.id, 'prixDirect', e.target.value)}
+                  style={{
+                    flex: 1, minWidth: 0, border: 'none', background: 'transparent',
+                    fontSize: 15, fontWeight: 700, color: 'var(--text)', outline: 'none',
+                  }}
+                />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', whiteSpace: 'nowrap' }}>{devise}</span>
+                <span style={{ color: 'var(--danger)', fontWeight: 900, fontSize: 12 }}>*</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Lignes produits ── */}
         {!s.collapsed && (
           <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
-              {isPoids
-                ? 'Liste des articles — total facturé = poids lot × prix/kg.'
-                : 'Total produit = qté × prix unitaire. Si un prix taxé est saisi, c\'est lui qui est facturé pour la section.'
-              }
-            </div>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
               <span style={lbl}>Produit</span>
               <span style={lbl}>Qté</span>

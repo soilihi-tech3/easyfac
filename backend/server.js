@@ -1044,41 +1044,46 @@ async function runReminders() {
   }
 }
 
-async function initReminderCron() {
-  console.log('Initializing global multi-tenant WhatsApp reminder cron job (every 5 minutes)...');
-  if (globalReminderCron) {
-    globalReminderCron.stop();
-  }
+async function checkRemindersJob() {
+  try {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
 
-  globalReminderCron = cron.schedule('*/5 * * * *', async () => {
-    try {
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
+    const [boutiques] = await pool.query("SELECT * FROM boutiques WHERE statut = 'actif'");
+    for (const boutique of boutiques) {
+      const [settingsRows] = await pool.query('SELECT * FROM settings WHERE boutique_id = ?', [boutique.id]);
+      if (settingsRows.length > 0) {
+        const config = typeof settingsRows[0].config === 'string' ? JSON.parse(settingsRows[0].config) : settingsRows[0].config;
+        if (config && config.rappelAutomatique) {
+          const timeStr = config.rappelHeure || '08:00';
+          const [hourStr, minStr] = timeStr.split(':');
+          const targetHour = parseInt(hourStr, 10) || 8;
+          const targetMin = parseInt(minStr, 10) || 0;
 
-      const [boutiques] = await pool.query("SELECT * FROM boutiques WHERE statut = 'actif'");
-      for (const boutique of boutiques) {
-        const [settingsRows] = await pool.query('SELECT * FROM settings WHERE boutique_id = ?', [boutique.id]);
-        if (settingsRows.length > 0) {
-          const config = typeof settingsRows[0].config === 'string' ? JSON.parse(settingsRows[0].config) : settingsRows[0].config;
-          if (config && config.rappelAutomatique) {
-            const timeStr = config.rappelHeure || '08:00';
-            const [hourStr, minStr] = timeStr.split(':');
-            const targetHour = parseInt(hourStr, 10) || 8;
-            const targetMin = parseInt(minStr, 10) || 0;
-
-            const diffMinutes = (currentHour * 60 + currentMinute) - (targetHour * 60 + targetMin);
-            if (diffMinutes >= 0 && diffMinutes < 5) {
-              console.log(`⏰ Time to run automatic reminders for boutique "${boutique.nom}" (${boutique.id})`);
-              await runRemindersForBoutique(boutique.id);
-            }
+          const diffMinutes = (currentHour * 60 + currentMinute) - (targetHour * 60 + targetMin);
+          if (diffMinutes >= 0 && diffMinutes < 5) {
+            console.log(`⏰ Time to run automatic reminders for boutique "${boutique.nom}" (${boutique.id})`);
+            await runRemindersForBoutique(boutique.id);
           }
         }
       }
-    } catch (err) {
-      console.error("Error in global reminder cron:", err);
     }
-  });
+  } catch (err) {
+    console.error("Error in reminder interval job:", err);
+  }
+}
+
+async function initReminderCron() {
+  console.log('Initializing global multi-tenant WhatsApp reminder worker (every 5 minutes)...');
+  if (globalReminderCron) {
+    clearInterval(globalReminderCron);
+    globalReminderCron = null;
+  }
+
+  // Exécute immédiatement la vérification au démarrage puis toutes les 5 minutes
+  checkRemindersJob();
+  globalReminderCron = setInterval(checkRemindersJob, 5 * 60 * 1000);
 }
 
 app.get('/api/cron/reminders', async (req, res) => {

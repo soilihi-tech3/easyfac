@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuid } from 'uuid';
-import { getClients, getVoyages, searchClients, getNextNumero, formatCurrency, formatDate, getVoyagesCache, getClientsCache, getParametresCache, convertCurrency } from '../../data/store';
-import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { getClients, getVoyages, getNextNumero, formatCurrency, formatDate, getVoyagesCache, getClientsCache, getParametresCache, convertCurrency } from '../../data/store';
+import { X, Search, Package, Send, Truck, CreditCard, Plus, Trash2, Scale, Banknote, Layers, ChevronDown, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { createPortal } from 'react-dom';
+
 const MODES_PAIEMENT = [
   { value: 'cash', label: 'Cash' },
   { value: 'orange_money', label: 'Orange Money' },
@@ -10,7 +12,78 @@ const MODES_PAIEMENT = [
   { value: 'mixte', label: 'Mixte' },
 ];
 
-const emptyArticle = () => ({ id: uuid(), nom: '', quantite: 1, prixUnitaire: 0, total: 0 });
+/**
+ * Produit vide d'une section.
+ * Pour une section poids : quantite + prixUnitaire sont informatifs (affichés sur le reçu).
+ * Le poids total de facturation est stocké AU NIVEAU de la section (s.poids).
+ */
+const emptyProduit = () => ({ id: uuid(), nom: '', quantite: 1, prixUnitaire: '' });
+
+/**
+ * Section vide.
+ * type 'poids' : poids (kg) de tout le lot + prix/kg → total = poids × prixKg
+ * type 'direct' : total = Σ(qté × PU)
+ */
+const emptySection = (type, prixKg = '') => ({
+  id: uuid(), type,
+  prixKg: type === 'poids' ? prixKg : '',
+  poids: '',        // poids total de toute la section (mode poids seulement)
+  prixDirect: '',   // prix total facturé de toute la section (mode direct seulement)
+  produits: [emptyProduit()],
+});
+
+/** Total affiché d'un produit individuel (coût informatif = qté × PU) */
+const calcProduitAffiche = (p) =>
+  (parseFloat(p.quantite) || 0) * (parseFloat(p.prixUnitaire) || 0);
+
+/** Total de facturation d'une section */
+const calcSectionTotal = (s) => {
+  if (s.type === 'poids') {
+    return (parseFloat(s.poids) || 0) * (parseFloat(s.prixKg) || 0);
+  }
+  // Prix direct : prix taxé saisi si renseigné, sinon somme des (qté × PU)
+  const taxe = parseFloat(s.prixDirect) || 0;
+  if (taxe > 0) return taxe;
+  return calcSectionArticles(s);
+};
+/** Valeur des articles d'une section = Σ(qté × PU) */
+const calcSectionArticles = (s) => s.produits.reduce((t, p) =>
+  t + (parseFloat(p.quantite) || 0) * (parseFloat(p.prixUnitaire) || 0), 0);
+const calcSectionsTotal = (sections) => sections.reduce((t, s) => t + calcSectionTotal(s), 0);
+
+/** Aplatit les sections en articles (format sauvegardé + lu par le reçu) */
+const flattenSections = (sections) => sections.flatMap(s => {
+  const sTotal = calcSectionTotal(s);
+  // Pour poids : on répartit le total de la section proportionnellement au PU × qté de chaque produit
+  const articlesQtePU = s.produits
+    .filter(p => p.nom || p.prixUnitaire)
+    .map(p => ({ ...p, affiche: calcProduitAffiche(p) }));
+  const totalAffiche = articlesQtePU.reduce((t, p) => t + p.affiche, 0);
+  return articlesQtePU.map(p => ({
+    id: p.id, nom: p.nom, sectionId: s.id,
+    typeCalcul: s.type,
+    quantite: parseFloat(p.quantite) || 1,
+    prixUnitaire: parseFloat(p.prixUnitaire) || 0,
+    poidsSectionKg: s.type === 'poids' ? (parseFloat(s.poids) || 0) : '',
+    prixKgArticle: s.type === 'poids' ? (parseFloat(s.prixKg) || 0) : '',
+    total: calcProduitAffiche(p),
+    totalFacture: totalAffiche > 0 ? (p.affiche / totalAffiche) * sTotal : sTotal / Math.max(articlesQtePU.length, 1),
+  }));
+});
+
+/**
+ * (legacy) Crée un article vide avec le mode par défaut "poids".
+ * @param {number} defaultPrixKg - Prix/kg par défaut hérité du paramètre global
+ */
+const emptyArticle = (defaultPrixKg = 6000) => ({
+  id: uuid(),
+  nom: '',
+  typeCalcul: 'poids',   // 'poids' | 'direct'
+  poids: '',
+  prixKgArticle: defaultPrixKg,
+  prixDirect: '',
+  total: 0,
+});
 
 const extractPhoneParts = (phone) => {
   if (!phone) return { prefix: '+221', number: '' };
@@ -20,24 +93,103 @@ const extractPhoneParts = (phone) => {
   return { prefix: '+221', number: phone };
 };
 
-import { createPortal } from 'react-dom';
+/** Calcule le total d'un article selon son mode */
+const calcArticleTotal = (a) => {
+  if (a.typeCalcul === 'direct') {
+    return parseFloat(a.prixDirect) || 0;
+  }
+  return (parseFloat(a.poids) || 0) * (parseFloat(a.prixKgArticle) || 0);
+};
 
 export default function FactureModal({ facture, onClose, onSave, prixKg, devise }) {
   const { user } = useAuth();
   const [defaultVoyageId, setDefaultVoyageId] = useState('');
+  const globalPrixKg = prixKg || 6000;
+
+  // ─── Normalisation des articles à l'édition ────────────────────────────────
+  const normalizeArticles = (rawArticles) => {
+    if (!rawArticles || rawArticles.length === 0) return [emptyArticle(globalPrixKg)];
+    return rawArticles.map(a => {
+      // Compatibilité avec l'ancien format (quantite / prixUnitaire)
+      if (a.typeCalcul === 'direct') {
+        return { ...emptyArticle(globalPrixKg), ...a, typeCalcul: 'direct' };
+      }
+      if (a.typeCalcul === 'poids') {
+        return { ...emptyArticle(globalPrixKg), ...a, typeCalcul: 'poids' };
+      }
+      // Ancien format : on tente de deviner
+      if (a.poids && parseFloat(a.poids) > 0) {
+        return {
+          id: a.id || uuid(),
+          nom: a.nom || '',
+          typeCalcul: 'poids',
+          poids: a.poids,
+          prixKgArticle: a.prixKgArticle || a.prixUnitaire || globalPrixKg,
+          prixDirect: '',
+          total: parseFloat(a.total) || 0,
+        };
+      }
+      return {
+        id: a.id || uuid(),
+        nom: a.nom || '',
+        typeCalcul: 'direct',
+        poids: '',
+        prixKgArticle: globalPrixKg,
+        prixDirect: a.prixDirect || a.total || a.prixUnitaire || '',
+        total: parseFloat(a.total) || 0,
+      };
+    });
+  };
+
+  /** Construit les sections depuis une facture existante (nouveau ou ancien format) */
+  const buildSections = (f) => {
+    if (f?.sections?.length) return f.sections;
+    const arts = normalizeArticles(f?.articles).filter(a => a.nom || calcArticleTotal(a) > 0);
+    if (!arts.length) return [emptySection('poids', globalPrixKg)];
+    const map = new Map();
+    arts.forEach(a => {
+      const key = a.typeCalcul === 'poids' ? `poids-${a.prixKgArticle}` : 'direct';
+      if (!map.has(key)) map.set(key, {
+        id: uuid(), type: a.typeCalcul,
+        prixKg: a.typeCalcul === 'poids' ? (a.prixKgArticle || '') : '',
+        poids: '', // sera recalculé depuis poidsTotal si dispo
+        produits: [],
+      });
+      const sec = map.get(key);
+      sec.produits.push({
+        id: a.id || uuid(), nom: a.nom,
+        quantite: a.quantite || 1,
+        prixUnitaire: a.prixUnitaire || (a.typeCalcul === 'direct' ? (a.prixDirect || '') : ''),
+      });
+      // Accumule le poids legacy dans la section
+      if (a.typeCalcul === 'poids' && parseFloat(a.poids) > 0) {
+        sec.poids = String((parseFloat(sec.poids) || 0) + (parseFloat(a.poids) || 0));
+      }
+    });
+    return [...map.values()];
+  };
+  const [sections, setSections] = useState(() => buildSections(facture));
+
+  // Nouvelle facture : 1re section poids = prix/kg des paramètres (modifiable ensuite)
+  useEffect(() => {
+    if (facture || !prixKg) return;
+    setSections(ss => {
+      const i = ss.findIndex(s => s.type === 'poids');
+      if (i === -1) return ss;
+      return ss.map((s, j) => j === i ? { ...s, prixKg } : s);
+    });
+  }, [prixKg, facture]);
 
   const [form, setForm] = useState(facture ? {
     ...facture,
+    articles: normalizeArticles(facture.articles),
     payerComores: facture.payerComores || 0,
     montantComores: String(facture.montantComores || 0),
   } : {
     numero: '',
     expediteur: { nom: '', prenom: '', telephone: '' },
     destinataire: { nom: '', prenom: '', telephone: '' },
-    articles: [emptyArticle()],
-    poidsTotal: 0,
-    prixKg: prixKg || 6000,
-    fraisFret: 0,
+    articles: [emptyArticle(globalPrixKg)],
     montantTotal: 0,
     montantPaye: 0,
     statut: 'non_paye',
@@ -49,12 +201,16 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     montantComores: '0',
   });
 
-  // If editing, format the existing dateLimite to YYYY-MM-DD, otherwise default to today
+  // Recalcule montantTotal à chaque changement d'articles
+  const recalcTotal = (articles) =>
+    articles.reduce((sum, a) => sum + calcArticleTotal(a), 0);
+
+  // ─── Init : numéro, voyage, date ───────────────────────────────────────────
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     if (facture) {
-      const dLimite = facture.dateLimite 
-        ? new Date(facture.dateLimite).toISOString().split('T')[0] 
+      const dLimite = facture.dateLimite
+        ? new Date(facture.dateLimite).toISOString().split('T')[0]
         : todayStr;
       setForm(f => ({ ...f, dateLimite: dLimite }));
     } else {
@@ -94,7 +250,6 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
           setForm(f => ({
             ...f,
             numero: num,
-            prixKg: prixKg || 6000,
             voyageId: defId || (allVoyages.length > 0 ? allVoyages[0].id : '')
           }));
         }
@@ -106,6 +261,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     init();
   }, [facture, prixKg]);
 
+  // ─── Recherche client ──────────────────────────────────────────────────────
   useEffect(() => {
     if (clientSearch.length >= 2) {
       const s = clientSearch.toLowerCase();
@@ -130,55 +286,86 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   const updateExp = (field, value) => setForm(f => ({ ...f, expediteur: { ...f.expediteur, [field]: value, id: undefined } }));
   const updateDest = (field, value) => setForm(f => ({ ...f, destinataire: { ...f.destinataire, [field]: value, id: undefined } }));
 
+  // ─── Gestion des articles ──────────────────────────────────────────────────
+
+  const updateSection = (sid, field, value) =>
+    setSections(ss => ss.map(s => s.id === sid ? { ...s, [field]: value } : s));
+  const addSection = (type) =>
+    setSections(ss => [...ss, emptySection(type, type === 'poids' && !ss.some(x => x.type === 'poids') ? globalPrixKg : '')]);
+  const removeSection = (sid) => setSections(ss => ss.filter(s => s.id !== sid));
+  const addProduit = (sid) =>
+    setSections(ss => ss.map(s => s.id === sid ? { ...s, produits: [...s.produits, emptyProduit()] } : s));
+  const removeProduit = (sid, pid) =>
+    setSections(ss => ss.map(s => s.id === sid ? { ...s, produits: s.produits.filter(p => p.id !== pid) } : s));
+  const updateProduit = (sid, pid, field, value) =>
+    setSections(ss => ss.map(s => s.id !== sid ? s : {
+      ...s, produits: s.produits.map(p => p.id === pid ? { ...p, [field]: value } : p),
+    }));
+
+  /** Change un champ d'un article et recalcule son total et le total facture */
   const updateArticle = (id, field, value) => {
     setForm(f => {
       const articles = f.articles.map(a => {
         if (a.id !== id) return a;
         const updated = { ...a, [field]: value };
-        updated.total = (parseFloat(updated.quantite) || 0) * (parseFloat(updated.prixUnitaire) || 0);
+        updated.total = calcArticleTotal(updated);
         return updated;
       });
-      return { ...f, articles };
+      return { ...f, articles, montantTotal: recalcTotal(articles) };
+    });
+  };
+
+  /** Bascule le mode de calcul d'un article */
+  const toggleArticleMode = (id, mode) => {
+    setForm(f => {
+      const articles = f.articles.map(a => {
+        if (a.id !== id) return a;
+        const updated = { ...a, typeCalcul: mode };
+        updated.total = calcArticleTotal(updated);
+        return updated;
+      });
+      return { ...f, articles, montantTotal: recalcTotal(articles) };
     });
   };
 
   const addArticle = () => {
     setForm(f => {
-      const a = emptyArticle();
-      return { ...f, articles: [...f.articles, a] };
+      const a = emptyArticle(globalPrixKg);
+      const articles = [...f.articles, a];
+      return { ...f, articles };
     });
   };
 
   const removeArticle = (id) => {
     setForm(f => {
       const articles = f.articles.filter(a => a.id !== id);
-      return { ...f, articles };
+      return { ...f, articles, montantTotal: recalcTotal(articles) };
     });
   };
 
-  const updateFret = (field, value) => {
-    setForm(f => {
-      const nf = { ...f, [field]: value };
-      const fraisFret = (parseFloat(nf.poidsTotal) || 0) * (parseFloat(nf.prixKg) || 0);
-      const montantTotal = fraisFret; // Total is ONLY the transport cost
-      return { ...nf, fraisFret, montantTotal };
-    });
-  };
-
+  // ─── Paiement ──────────────────────────────────────────────────────────────
   const handlePaye = (value) => {
-    const montantPaye = value;
     const numPaye = parseFloat(value) || 0;
     let statut = 'non_paye';
-    if (numPaye >= form.montantTotal && form.montantTotal > 0) statut = 'paye';
+    const tot = calcSectionsTotal(sections);
+    if (numPaye >= tot && tot > 0) statut = 'paye';
     else if (numPaye > 0) statut = 'partiel';
-    setForm(f => ({ ...f, montantPaye, statut }));
+    setForm(f => ({ ...f, montantPaye: value, statut }));
   };
 
+  // ─── Validation ────────────────────────────────────────────────────────────
   const validate = () => {
     const e = {};
     if (!form.expediteur?.nom || !form.expediteur?.prenom) e.exp = 'Informations expéditeur requises';
     if (!form.destinataire?.nom || !form.destinataire?.prenom) e.dest = 'Informations destinataire requises';
-    if (form.articles.length === 0 || form.articles.every(a => !a.nom)) e.articles = 'Ajoutez au moins un article';
+    if (flattenSections(sections).every(a => !a.nom)) e.articles = 'Ajoutez au moins un produit avec un nom';
+    const missing = sections.filter(s => s.type === 'poids'
+      ? !(parseFloat(s.poids) > 0) || !(parseFloat(s.prixKg) > 0)
+      : !(parseFloat(s.prixDirect) > 0));
+    if (missing.length) {
+      e.sectionIds = missing.map(s => s.id);
+      e.articles = (e.articles ? e.articles + ' — ' : '') + 'Le poids (section poids) et le prix taxé (section prix direct) sont obligatoires';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -186,15 +373,20 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   const handleSubmit = () => {
     if (!validate()) return;
     setSaving(true);
-    // On plafonne le montant payé au total de la facture pour ne pas fausser la comptabilité
     const numPaye = parseFloat(form.montantPaye) || 0;
-    const cappedPaye = Math.min(numPaye, form.montantTotal);
+    const cappedPaye = Math.min(numPaye, montantTotal);
     const data = {
       ...form,
+      sections,
+      articles: flattenSections(sections),
+      montantTotal,
       montantPaye: cappedPaye,
-      montantComores: parseFloat(form.montantComores) || 0
+      montantComores: parseFloat(form.montantComores) || 0,
+      // Champs legacy remis à zéro (plus utilisés)
+      poidsTotal: 0,
+      prixKg: globalPrixKg,
+      fraisFret: 0,
     };
-
     onSave(data).finally(() => setSaving(false));
   };
 
@@ -204,6 +396,11 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     searchRef.current?.focus();
   };
 
+  // ─── Totaux ────────────────────────────────────────────────────────────────
+  const montantTotal = calcSectionsTotal(sections);
+  const totalArticles = sections.reduce((t, s) => t + calcSectionArticles(s), 0);
+
+  // ─── Composants internes ───────────────────────────────────────────────────
   const SectionHead = ({ Icon, label, color = 'var(--brand)' }) => (
     <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
       <div style={{
@@ -217,9 +414,120 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     </div>
   );
 
+  /** Carte d'une section tarifaire (render function, pas un composant, pour garder le focus) */
+  const renderSection = (s) => {
+    const isPoids = s.type === 'poids';
+    const color = isPoids ? '#f59e0b' : '#22c55e';
+    const tint = isPoids ? 'rgba(245,158,11,' : 'rgba(34,197,94,';
+    const Icon = isPoids ? Scale : Banknote;
+    // Colonnes : Produit | Qté | Coût unit. | Val. (affichée) | Supprimer
+    const cols = '2fr 70px 1fr 1fr 34px';
+    const lbl = { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' };
+    const sTotal = calcSectionTotal(s);
+    const poidsVal = parseFloat(s.poids) || 0;
+    const prixKgVal = parseFloat(s.prixKg) || 0;
+    return (
+      <div key={s.id} style={{ border: `1px solid ${tint}0.3)`, borderRadius: 14, overflow: 'hidden', background: 'var(--bg-surface)' }}>
+        {/* En-tête de section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: `${tint}0.08)`, borderBottom: `1px solid ${tint}0.2)`, flexWrap: 'wrap' }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon size={15} />
+          </div>
+          <span style={{ fontWeight: 800, fontSize: 13.5 }}>{isPoids ? 'Tarif au poids' : 'Prix direct'}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+            {s.produits.filter(p => p.nom).length} produit(s)
+          </span>
+          {!isPoids && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Prix taxé :</span>
+              <input className="form-input" type="number" min="0" placeholder={String(calcSectionArticles(s) || 'Montant')} value={s.prixDirect || ''}
+                onChange={e => updateSection(s.id, 'prixDirect', e.target.value)}
+                style={{ width: 120, padding: '6px 10px', borderColor: errors.sectionIds?.includes(s.id) && !(parseFloat(s.prixDirect) > 0) ? 'var(--danger)' : '#22c55e' }} />
+              <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>{devise}</span>
+            </div>
+          )}
+          {isPoids && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* Prix/kg */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>1 kg =</span>
+                <input className="form-input" type="number" min="0" placeholder="Prix/kg" value={s.prixKg}
+                  onChange={e => updateSection(s.id, 'prixKg', e.target.value)}
+                  style={{ width: 100, padding: '6px 10px' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>{devise}</span>
+              </div>
+              {/* Poids total de la section */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Poids lot :</span>
+                <input className="form-input" type="number" min="0" step="0.1" placeholder="0" value={s.poids}
+                  onChange={e => updateSection(s.id, 'poids', e.target.value)}
+                  style={{ width: 80, padding: '6px 10px', borderColor: errors.sectionIds?.includes(s.id) && !(parseFloat(s.poids) > 0) ? 'var(--danger)' : undefined }} />
+                <span style={{ color: 'var(--danger)', fontWeight: 800 }}>*</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700 }}>kg</span>
+              </div>
+              {/* Formule de calcul */}
+              {poidsVal > 0 && prixKgVal > 0 && (
+                <span style={{ fontSize: 12, color: color, fontWeight: 700 }}>
+                  {poidsVal} kg × {formatCurrency(prixKgVal, devise)}/kg
+                </span>
+              )}
+            </div>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 800, color, fontFamily: 'var(--font-display)' }}>{formatCurrency(sTotal, devise)}</span>
+            <button type="button" className="btn-icon" title={s.collapsed ? 'Afficher la section' : 'Masquer la section'}
+              onClick={() => updateSection(s.id, 'collapsed', !s.collapsed)}>
+              {s.collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </button>
+            <button type="button" className="btn-icon danger" title="Supprimer la section" onClick={() => removeSection(s.id)}><Trash2 size={13} /></button>
+          </div>
+        </div>
+
+        {/* Lignes produits */}
+        {!s.collapsed && (
+          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 4 }}>
+              {isPoids
+                ? 'Liste des articles — total facturé = poids lot × prix/kg.'
+                : 'Total produit = qté × prix unitaire. Si un prix taxé est saisi, c\'est lui qui est facturé pour la section.'
+              }
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
+              <span style={lbl}>Produit</span>
+              <span style={lbl}>Qté</span>
+              <span style={lbl}>Prix unit. ({devise})</span>
+              <span style={{ ...lbl, textAlign: 'right' }}>{isPoids ? 'Val. déclarée' : 'Total'}</span>
+              <span />
+            </div>
+            {s.produits.map(p => (
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: cols, gap: 8, alignItems: 'center' }}>
+                <input className="form-input" placeholder="Nom du produit" value={p.nom}
+                  onChange={e => updateProduit(s.id, p.id, 'nom', e.target.value)} />
+                <input className="form-input" type="number" min="1" value={p.quantite}
+                  onChange={e => updateProduit(s.id, p.id, 'quantite', e.target.value)} />
+                <input className="form-input" type="number" min="0" placeholder="0" value={p.prixUnitaire}
+                  onChange={e => updateProduit(s.id, p.id, 'prixUnitaire', e.target.value)} />
+                <span style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: isPoids ? 'var(--text-muted)' : 'var(--text)' }}>
+                  {formatCurrency(calcProduitAffiche(p), devise)}
+                  {isPoids && <span style={{ fontSize: 10, display: 'block', fontWeight: 400 }}>déclaré</span>}
+                </span>
+                <button type="button" className="btn-icon danger" onClick={() => removeProduit(s.id, p.id)} title="Supprimer"><Trash2 size={13} /></button>
+              </div>
+            ))}
+            <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start', marginTop: 4 }} onClick={() => addProduit(s.id)}>
+              <Plus size={13} /> Ajouter un article
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─── Rendu principal ───────────────────────────────────────────────────────
   return createPortal(
     <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 800 }}>
+      <div className="modal" style={{ maxWidth: 820 }}>
         <div className="modal-header">
           <h2 className="modal-title">{facture ? 'Modifier la facture' : 'Nouvelle facture'}</h2>
           <button className="modal-close" onClick={onClose}><X size={15} /></button>
@@ -231,6 +539,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
             {/* N° + Voyage */}
             <div className="grid-2">
               <div className="form-group">
@@ -255,7 +564,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
               </div>
             </div>
 
-            {/* Client Search */}
+            {/* Recherche client */}
             <div className="info-box" style={{ position: 'relative' }}>
               <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
                 <div className="flex items-center gap-2">
@@ -398,84 +707,55 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
               </div>
             </div>
 
-            {/* Articles */}
+            {/* ═══ Articles & Tarification ═════════════════════════════════════ */}
             <div>
-              <SectionHead Icon={Package} label="Articles & Transport" color="var(--warning)" />
+              <SectionHead Icon={Package} label="Articles & Tarification" color="var(--warning)" />
+
               {errors.articles && <div className="alert alert-error" style={{ marginBottom: 12 }}>{errors.articles}</div>}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div className="article-header-grid">
-                  {['Article', 'Qté', 'Prix unitaire', 'Total', ''].map((h, i) => (
-                    <div key={i} style={{ fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</div>
-                  ))}
-                </div>
-                {form.articles.map(a => (
-                  <div key={a.id} className="article-grid">
-                    <div className="article-col-nom">
-                      <span className="mobile-only-label">Article</span>
-                      <input className="form-input" placeholder="Nom de l'article" value={a.nom} onChange={e => updateArticle(a.id, 'nom', e.target.value)} />
-                    </div>
-                    <div className="article-col-qte">
-                      <span className="mobile-only-label">Qté</span>
-                      <input className="form-input" type="number" min="1" value={a.quantite} onChange={e => updateArticle(a.id, 'quantite', e.target.value)} />
-                    </div>
-                    <div className="article-col-pu">
-                      <span className="mobile-only-label">Prix unitaire</span>
-                      <input className="form-input" type="number" min="0" value={a.prixUnitaire} onChange={e => updateArticle(a.id, 'prixUnitaire', e.target.value)} />
-                    </div>
-                    <div className="article-col-total">
-                      <span className="mobile-only-label">Total</span>
-                      <div style={{
-                        background: 'var(--brand-muted)', color: 'var(--brand)',
-                        padding: '10px 14px', borderRadius: 10, fontWeight: 700, fontSize: 13, textAlign: 'right',
-                      }}>
-                        {formatCurrency(a.total, devise)}
-                      </div>
-                    </div>
-                    <div className="article-col-action">
-                      <button className="btn-icon danger" onClick={() => removeArticle(a.id)}>
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 6 }}>
-                  <button className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={addArticle}>
-                    <Plus size={13} /> Ajouter un article
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {sections.map(renderSection)}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 12 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => addSection('poids')}>
+                    <Scale size={13} /> Section tarif poids
                   </button>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-                    background: 'var(--brand-muted)', borderRadius: 12, border: '1px solid rgba(99,102,241,0.2)'
-                  }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Somme totale des articles :</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--brand)', fontFamily: 'var(--font-display)' }}>
-                      {formatCurrency(form.articles.reduce((s, a) => s + (parseFloat(a.total) || 0), 0), devise)}
-                    </span>
-                  </div>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => addSection('direct')}>
+                    <Banknote size={13} /> Section prix direct
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 20px', background: 'var(--brand-muted)', borderRadius: 12, border: '1px solid rgba(99,102,241,0.25)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>Total articles : {formatCurrency(totalArticles, devise)}</span>
+                  <Layers size={15} style={{ color: 'var(--brand)' }} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary)' }}>Total facture :</span>
+                  <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--brand)', fontFamily: 'var(--font-display)' }}>{formatCurrency(montantTotal, devise)}</span>
                 </div>
               </div>
 
-              {/* Transport / Fret */}
-              <div style={{ marginTop: 20, padding: 16, background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-default)' }}>
-                <div className="transport-grid">
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Poids total du colis (kg)</label>
-                    <input className="form-input" type="number" min="0" step="0.5" value={form.poidsTotal} onChange={e => updateFret('poidsTotal', e.target.value)} />
-                  </div>
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">Prix au kg ({devise})</label>
-                    <input className="form-input" type="number" min="0" value={form.prixKg} onChange={e => updateFret('prixKg', e.target.value)} />
-                  </div>
-                  <div className="transport-total-col">
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 6 }}>Frais de transport</div>
-                    <div style={{ fontSize: 18, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--brand)' }}>
-                      {formatCurrency(form.fraisFret, devise)}
-                    </div>
-                  </div>
+              {/* Récap par section */}
+              {sections.length > 1 && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  {sections.map(s => {
+                    const isP = s.type === 'poids';
+                    const Ic = isP ? Scale : Banknote;
+                    return (
+                      <div key={s.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        background: isP ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)', color: isP ? '#f59e0b' : '#22c55e',
+                        border: `1px solid ${isP ? 'rgba(245,158,11,0.25)' : 'rgba(34,197,94,0.25)'}`
+                      }}>
+                        <Ic size={12} />
+                        {isP ? `${formatCurrency(s.prixKg || 0, devise)}/kg` : 'Prix direct'} · {formatCurrency(calcSectionTotal(s), devise)}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
 
-            {/* Paiement */}
+            {/* ═══ Paiement ════════════════════════════════════════════════════ */}
             <div className="info-box">
               <SectionHead Icon={CreditCard} label="Paiement" color="var(--success)" />
               <div className="grid-2" style={{ gap: 16 }}>
@@ -490,19 +770,20 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                   <input className="form-input" type="number" min="0" value={form.montantPaye} onChange={e => handlePaye(e.target.value)} />
                 </div>
               </div>
+
               <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border-default)' }}>
                 <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Total facture</span>
                 <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 800, color: 'var(--brand)' }}>
-                  {formatCurrency(form.montantTotal, devise)}
+                  {formatCurrency(montantTotal, devise)}
                 </span>
               </div>
 
-              {/* Affichage du Reste à payer (si le client n'a pas tout payé) */}
-              {form.montantTotal - (parseFloat(form.montantPaye) || 0) > 0 && (
+              {/* Reste à payer */}
+              {montantTotal - (parseFloat(form.montantPaye) || 0) > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--danger-muted)', borderRadius: 10 }}>
                     <span style={{ color: 'var(--danger)', fontSize: 13 }}>Reste à payer</span>
-                    <span style={{ fontWeight: 700, color: 'var(--danger)', fontSize: 14 }}>{formatCurrency(form.montantTotal - (parseFloat(form.montantPaye) || 0), devise)}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--danger)', fontSize: 14 }}>{formatCurrency(montantTotal - (parseFloat(form.montantPaye) || 0), devise)}</span>
                   </div>
                   <div className="form-group" style={{ marginTop: 12 }}>
                     <label className="form-label">Date d'échéance de paiement</label>
@@ -516,14 +797,15 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                 </div>
               )}
 
-              {/* Affichage de la monnaie À rendre (si le client donne plus) */}
-              {(parseFloat(form.montantPaye) || 0) - form.montantTotal > 0 && (
+              {/* Monnaie à rendre */}
+              {(parseFloat(form.montantPaye) || 0) - montantTotal > 0 && (
                 <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 16px', background: 'var(--success-muted)', borderRadius: 10, border: '1px solid var(--success)' }}>
                   <span style={{ color: 'var(--success)', fontSize: 13, fontWeight: 600 }}>À rendre (monnaie)</span>
-                  <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15 }}>{formatCurrency((parseFloat(form.montantPaye) || 0) - form.montantTotal, devise)}</span>
+                  <span style={{ fontWeight: 800, color: 'var(--success)', fontSize: 15 }}>{formatCurrency((parseFloat(form.montantPaye) || 0) - montantTotal, devise)}</span>
                 </div>
               )}
-              {/* Options additionnelles : Payer aux Comores */}
+
+              {/* Payer aux Comores */}
               <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12, padding: '14px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none', fontWeight: 600, fontSize: 13.5 }}>
                   <input
@@ -531,7 +813,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                     checked={!!form.payerComores}
                     onChange={e => {
                       const checked = e.target.checked;
-                      const remaining = Math.max(0, form.montantTotal - (parseFloat(form.montantPaye) || 0));
+                      const remaining = Math.max(0, montantTotal - (parseFloat(form.montantPaye) || 0));
                       setForm(f => ({
                         ...f,
                         payerComores: checked ? 1 : 0,
@@ -554,7 +836,6 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
                           value={form.montantComores}
                           onChange={e => {
                             const val = e.target.value;
-                            // Allow empty string, decimals, or numbers
                             if (val === '' || /^[0-9]*\.?[0-9]*$/.test(val)) {
                               setForm(f => ({ ...f, montantComores: val }));
                             }
@@ -569,7 +850,7 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
 
                     {devise !== 'KMF' && (
                       <>
-                        <div style={{ display: 'flex', justifyBetween: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--brand-muted)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--brand-muted)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)', gap: 10 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Equivalent en Franc Comorien (KMF)</span>
                           <strong style={{ fontSize: 14, color: 'var(--brand)', fontFamily: 'var(--font-display)', whiteSpace: 'nowrap' }}>
                             {formatCurrency(convertCurrency(parseFloat(form.montantComores) || 0, devise, 'KMF'), 'KMF')}

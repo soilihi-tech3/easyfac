@@ -58,11 +58,54 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
 
   const accentColor = config.couleurPrimaire || '#6366f1';
   const statColor   = STATUT_COLOR[facture.statut] || '#94a3b8';
-  const articles    = (facture.articles || []).filter(a => a.nom || a.poids);
+  const rawArticles = (facture.articles || []).filter(a => a.nom || a.poids);
+  const sectionsSrc = Array.isArray(facture.sections) && facture.sections.length ? facture.sections : null;
 
-  const articlesTotal = articles.reduce((sum, a) => sum + (parseFloat(a.total) || 0), 0);
+  // Lignes d'affichage : articles (qté × PU) + 1 ligne récap facturée par section
+  let articlesTotal = 0;
+  const articles = [];
+  if (sectionsSrc) {
+    sectionsSrc.forEach((s, idx) => {
+      const label = sectionsSrc.length > 1 ? `Section ${idx + 1}` : 'Section';
+      const prods = (s.produits || []).filter(p => p.nom || parseFloat(p.prixUnitaire));
+      prods.forEach(p => {
+        const q = parseFloat(p.quantite) || 1;
+        const pu = parseFloat(p.prixUnitaire) || 0;
+        articlesTotal += q * pu;
+        articles.push({ kind: 'item', nom: p.nom, quantite: q, prixUnitaire: pu, total: q * pu });
+      });
+      if (s.type === 'poids') {
+        const kg = parseFloat(s.poids) || 0;
+        const pk = parseFloat(s.prixKg) || 0;
+        articles.push({ kind: 'poids', nom: `${label} — Fret au poids`, poids: kg, prixKgArticle: pk, total: kg * pk });
+      } else {
+        const valeur = prods.reduce((t, p) => t + (parseFloat(p.quantite) || 1) * (parseFloat(p.prixUnitaire) || 0), 0);
+        const taxe = parseFloat(s.prixDirect) || 0;
+        articles.push({ kind: 'taxe', nom: `${label} — ${taxe > 0 ? 'Prix taxé' : 'Prix direct'}`, total: taxe > 0 ? taxe : valeur });
+      }
+    });
+  } else {
+    rawArticles.forEach(a => { articlesTotal += parseFloat(a.total) || 0; articles.push(a); });
+  }
+
   const fretTotal = parseFloat(facture.fraisFret) || 0;
   const hasArticlesTotal = articlesTotal > 0;
+
+  // Affichage selon le type de ligne
+  const qteLabel = (a) => {
+    if (a.kind === 'poids') return `${a.poids || 0} kg`;
+    if (a.kind === 'taxe') return '—';
+    if (a.kind === 'item') return a.quantite;
+    if (a.typeCalcul === 'poids') return `${a.quantite || 1} · ${a.poids || 0} kg`;
+    return a.quantite || 1;
+  };
+  const puLabel = (a) => {
+    if (a.kind === 'poids') return `${formatCurrency(a.prixKgArticle, devise)}/kg`;
+    if (a.kind === 'taxe') return '—';
+    if (a.kind === 'item') return formatCurrency(a.prixUnitaire, devise);
+    if (a.typeCalcul === 'poids' && !a.prixUnitaire) return `${formatCurrency(a.prixKgArticle, devise)}/kg`;
+    return a.prixUnitaire ? formatCurrency(a.prixUnitaire, devise) : formatCurrency(a.total, devise);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -73,7 +116,15 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
       `*Facture ${facture.numero}*`,
       `Expéditeur: ${facture.expediteur?.prenom} ${facture.expediteur?.nom}`,
       `Destinataire: ${facture.destinataire?.prenom} ${facture.destinataire?.nom}`,
-      articles.map(a => `  • ${a.nom} — ${a.poids ? `${a.poids}kg × ` : ''}${a.quantite > 1 ? `Qté: ${a.quantite} × ` : ''}${formatCurrency(a.prixUnitaire || a.prixKg, devise)} = ${formatCurrency(a.total, devise)}`).join('\n'),
+      articles.map(a => a.kind === 'poids'
+        ? `  ▸ ${a.nom} : ${a.poids} kg × ${formatCurrency(a.prixKgArticle, devise)}/kg = ${formatCurrency(a.total, devise)}`
+        : a.kind === 'taxe'
+        ? `  ▸ ${a.nom} : ${formatCurrency(a.total, devise)}`
+        : a.typeCalcul === 'direct'
+        ? `  • ${a.nom} — ${formatCurrency(a.total, devise)}`
+        : a.typeCalcul === 'poids'
+          ? `  • ${a.nom} — ${a.poids}kg × ${formatCurrency(a.prixKgArticle, devise)} = ${formatCurrency(a.total, devise)}`
+          : `  • ${a.nom} — ${a.quantite > 1 ? `Qté: ${a.quantite} × ` : ''}${formatCurrency(a.prixUnitaire, devise)} = ${formatCurrency(a.total, devise)}`).join('\n'),
       hasArticlesTotal ? `Total articles: ${formatCurrency(articlesTotal, devise)}` : '',
       fretTotal > 0 ? `Frais fret: ${formatCurrency(fretTotal, devise)}` : '',
       `Montant total: ${formatCurrency(facture.montantTotal, devise)}`,
@@ -367,7 +418,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: accentColor, color: '#ffffff', fontSize: 11, textTransform: 'uppercase' }}>
-              <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '60px', textAlign: 'center', color: '#ffffff' }}>QTÉ.</th>
+              <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '80px', textAlign: 'center', color: '#ffffff' }}>QTÉ / POIDS</th>
               <th style={{ padding: '10px 12px', borderRight: '2px solid #000', color: '#ffffff' }}>ARTICLE (DESCRIPTION)</th>
               <th style={{ padding: '10px 12px', borderRight: '2px solid #000', width: '120px', textAlign: 'right', color: '#ffffff' }}>PRIX UNITAIRE</th>
               <th style={{ padding: '10px 12px', width: '120px', textAlign: 'right', color: '#ffffff' }}>TOTAL</th>
@@ -375,10 +426,10 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
           </thead>
           <tbody>
             {articles.length > 0 ? articles.map((a, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #000' }}>
-                <td style={{ padding: '10px 12px', borderRight: '2px solid #000', textAlign: 'center', fontSize: 13 }}>{a.quantite || 1}</td>
+              <tr key={i} style={{ borderBottom: '1px solid #000', ...(a.kind && a.kind !== 'item' ? { background: '#f1f5f9', fontStyle: 'italic' } : {}) }}>
+                <td style={{ padding: '10px 12px', borderRight: '2px solid #000', textAlign: 'center', fontSize: 13 }}>{qteLabel(a)}</td>
                 <td style={{ padding: '10px 12px', borderRight: '2px solid #000', fontSize: 13, fontWeight: 600 }}>{a.nom}</td>
-                <td style={{ padding: '10px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 13 }}>{formatCurrency(a.prixUnitaire, devise)}</td>
+                <td style={{ padding: '10px 12px', borderRight: '2px solid #000', textAlign: 'right', fontSize: 13 }}>{puLabel(a)}</td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{formatCurrency(a.total, devise)}</td>
               </tr>
             )) : (
@@ -673,15 +724,15 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
           </thead>
           <tbody>
             {articles.map((a, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#ffffff' }}>
+              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: a.kind && a.kind !== 'item' ? '#eef2f7' : (i % 2 === 1 ? '#f8fafc' : '#ffffff'), ...(a.kind && a.kind !== 'item' ? { fontStyle: 'italic' } : {}) }}>
                 <td style={{ padding: '8px 12px', fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>
                   {a.nom}
                 </td>
                 <td style={{ padding: '8px 12px', fontSize: 12, textAlign: 'center', color: '#475569' }}>
-                  {a.quantite || 1}
+                  {qteLabel(a)}
                 </td>
                 <td style={{ padding: '8px 12px', fontSize: 12, textAlign: 'right', color: '#475569' }}>
-                  {formatCurrency(a.prixUnitaire, devise)}
+                  {puLabel(a)}
                 </td>
                 <td style={{ padding: '8px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: '#0f172a' }}>
                   {formatCurrency(a.total, devise)}
@@ -746,7 +797,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 </tr>
               )}
               <tr>
-                <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Sous-total :</td>
+                <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Total facturé (sections) :</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(facture.montantTotal, devise)}</td>
               </tr>
               <tr>
@@ -925,10 +976,10 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
           </thead>
           <tbody>
             {articles.map((a, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i % 2 === 1 ? '#f8fafc' : '#ffffff' }}>
+              <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: a.kind && a.kind !== 'item' ? '#eef2f7' : (i % 2 === 1 ? '#f8fafc' : '#ffffff'), ...(a.kind && a.kind !== 'item' ? { fontStyle: 'italic' } : {}) }}>
                 <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 700, color: '#1e293b' }}>{a.nom}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'center', color: '#475569' }}>{a.quantite || 1}</td>
-                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: '#475569' }}>{formatCurrency(a.prixUnitaire, devise)}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'center', color: '#475569' }}>{qteLabel(a)}</td>
+                <td style={{ padding: '10px 12px', fontSize: 12, textAlign: 'right', color: '#475569' }}>{puLabel(a)}</td>
                 <td style={{ padding: '10px 12px', fontSize: 12.5, fontWeight: 800, textAlign: 'right', color: accentColor }}>{formatCurrency(a.total, devise)}</td>
               </tr>
             ))}
@@ -984,7 +1035,7 @@ export default function ReceiptModal({ facture, onClose, devise, autoSendWhatsAp
                 </tr>
               )}
               <tr>
-                <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Sous-total :</td>
+                <td style={{ padding: '4px 8px', color: '#64748b', fontWeight: 700 }}>Total facturé (sections) :</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(facture.montantTotal, devise)}</td>
               </tr>
               <tr>

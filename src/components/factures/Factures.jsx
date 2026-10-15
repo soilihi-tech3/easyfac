@@ -243,7 +243,7 @@ export default function Factures() {
         const created = await addFacture(data);
         toast('Facture créée avec succès');
 
-        // Instead of sending a text message, we open the ReceiptModal and let it auto-send the PDF
+        //, we open the ReceiptModal and let it auto-send the PDF
         let phone = data.expediteur?.telephone || data.destinataire?.telephone || '';
         phone = phone.replace(/\D/g, '');
         

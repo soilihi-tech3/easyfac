@@ -143,7 +143,24 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
 
   /** Construit les sections depuis une facture existante (nouveau ou ancien format) */
   const buildSections = (f) => {
-    if (f?.sections?.length) return f.sections;
+    // Nouveau format : sections déjà stockées → on les normalise pour s'assurer que tous les champs existent
+    if (f?.sections?.length) {
+      return f.sections.map(s => ({
+        id: s.id || uuid(),
+        type: s.type || 'poids',
+        prixKg: String(s.prixKg ?? ''),
+        poids: String(s.poids ?? ''),
+        prixDirect: String(s.prixDirect ?? ''),
+        collapsed: s.collapsed || false,
+        produits: (s.produits || [emptyProduit()]).map(p => ({
+          id: p.id || uuid(),
+          nom: p.nom || '',
+          quantite: p.quantite ?? 1,
+          prixUnitaire: p.prixUnitaire ?? '',
+        })),
+      }));
+    }
+    // Ancien format : reconstruction depuis les articles
     const arts = normalizeArticles(f?.articles).filter(a => a.nom || calcArticleTotal(a) > 0);
     if (!arts.length) return [emptySection('poids', globalPrixKg)];
     const map = new Map();
@@ -153,6 +170,8 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
         id: uuid(), type: a.typeCalcul,
         prixKg: a.typeCalcul === 'poids' ? (a.prixKgArticle || '') : '',
         poids: '', // sera recalculé depuis poidsTotal si dispo
+        prixDirect: '',
+        collapsed: false,
         produits: [],
       });
       const sec = map.get(key);

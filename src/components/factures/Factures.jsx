@@ -257,7 +257,8 @@ export default function Factures() {
         load();
       }
     } catch (err) {
-      toast('Erreur d\'enregistrement', 'error');
+      console.error(err);
+      toast(err.message || 'Erreur d\'enregistrement', 'error');
     }
   };
 

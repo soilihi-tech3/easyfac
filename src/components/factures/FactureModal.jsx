@@ -141,51 +141,141 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     });
   };
 
-  /** Construit les sections depuis une facture existante (nouveau ou ancien format) */
+  /** Construit les sections depuis une facture existante (nouveau ou ancien format).
+   * Stratégie : on regroupe TOUJOURS les articles plats par section, puis on
+   * superpose les métadonnées de section (prixKg, poids, prixDirect) issues de
+   * f.sections. Ainsi aucune section ne peut disparaître même si f.sections est
+   * incomplet ou mal formé.
+   */
   const buildSections = (f) => {
-    // Nouveau format : sections déjà stockées → on les normalise pour s'assurer que tous les champs existent
-    if (f?.sections?.length) {
-      return f.sections.map(s => ({
-        id: s.id || uuid(),
-        type: s.type || 'poids',
-        prixKg: String(s.prixKg ?? ''),
-        poids: String(s.poids ?? ''),
+    if (!f) return [emptySection('poids', globalPrixKg)];
+
+    let storedSections = [];
+    if (typeof f.sections === 'string') {
+      try {
+        storedSections = JSON.parse(f.sections);
+      } catch (e) {
+        storedSections = [];
+      }
+    } else if (Array.isArray(f.sections)) {
+      storedSections = f.sections;
+    }
+
+    const rawArticles = Array.isArray(f.articles) ? f.articles : [];
+
+    // ── Cas 1 : sections stockées avec produits → les normaliser directement ──
+    // On utilise ce chemin quand les sections ont leurs produits intégrés (format complet).
+    const sectionsWithProduits = storedSections.filter(s => s && s.produits?.length > 0);
+    if (sectionsWithProduits.length === storedSections.length && storedSections.length > 0) {
+      return storedSections.map(s => ({
+        id:         s.id || uuid(),
+        type:       s.type || 'poids',
+        prixKg:     String(s.prixKg    ?? ''),
+        poids:      String(s.poids     ?? ''),
         prixDirect: String(s.prixDirect ?? ''),
-        collapsed: s.collapsed || false,
-        produits: (s.produits || [emptyProduit()]).map(p => ({
-          id: p.id || uuid(),
-          nom: p.nom || '',
-          quantite: p.quantite ?? 1,
-          prixUnitaire: p.prixUnitaire ?? '',
+        collapsed:  s.collapsed || false,
+        produits:   (s.produits || [emptyProduit()]).map(p => ({
+          id:           p.id || uuid(),
+          nom:          p.nom || '',
+          quantite:     p.quantite ?? 1,
+          prixUnitaire: String(p.prixUnitaire ?? ''),
         })),
       }));
     }
-    // Ancien format : reconstruction depuis les articles
-    const arts = normalizeArticles(f?.articles).filter(a => a.nom || calcArticleTotal(a) > 0);
-    if (!arts.length) return [emptySection('poids', globalPrixKg)];
+
+    // ── Cas 2 : reconstruction depuis les articles plats ──
+    const arts = normalizeArticles(rawArticles).filter(a => a.nom || calcArticleTotal(a) > 0);
+    if (!arts.length) {
+      // Aucun article : utiliser les sections stockées vides ou une section par défaut
+      if (storedSections.length) {
+        return storedSections.map(s => ({
+          id:         s.id || uuid(),
+          type:       s.type || 'poids',
+          prixKg:     String(s.prixKg    ?? ''),
+          poids:      String(s.poids     ?? ''),
+          prixDirect: String(s.prixDirect ?? ''),
+          collapsed:  s.collapsed || false,
+          produits:   (s.produits?.length ? s.produits : [emptyProduit()]).map(p => ({
+            id:           p.id || uuid(),
+            nom:          p.nom || '',
+            quantite:     p.quantite ?? 1,
+            prixUnitaire: String(p.prixUnitaire ?? ''),
+          })),
+        }));
+      }
+      return [emptySection('poids', globalPrixKg)];
+    }
+
+    const storedById = new Map(storedSections.map(s => [s.id, s]));
+    const hasPoids = (parseFloat(f.poidsTotal) > 0) || arts.some(a => a.typeCalcul === 'poids' || parseFloat(a.poids) > 0);
+
+    // Regrouper les articles par sectionId (si dispo) ou par typeCalcul+prixKg
     const map = new Map();
     arts.forEach(a => {
-      const key = a.typeCalcul === 'poids' ? `poids-${a.prixKgArticle}` : 'direct';
-      if (!map.has(key)) map.set(key, {
-        id: uuid(), type: a.typeCalcul,
-        prixKg: a.typeCalcul === 'poids' ? (a.prixKgArticle || '') : '',
-        poids: '', // sera recalculé depuis poidsTotal si dispo
-        prixDirect: '',
-        collapsed: false,
-        produits: [],
-      });
+      const sid = a.sectionId;
+      const key = sid
+        ? sid
+        : (a.typeCalcul === 'poids' || hasPoids)
+          ? `poids-${a.prixKgArticle || f.prixKg || globalPrixKg}`
+          : `direct`;
+
+      if (!map.has(key)) {
+        const stored = sid ? storedById.get(sid) : null;
+        const initialType = stored?.type || (hasPoids ? 'poids' : (a.typeCalcul || 'direct'));
+        map.set(key, {
+          id:         stored?.id || sid || uuid(),
+          type:       initialType,
+          prixKg:     String(stored?.prixKg ?? a.prixKgArticle ?? f.prixKg ?? globalPrixKg ?? ''),
+          poids:      String(stored?.poids  ?? (parseFloat(f.poidsTotal) > 0 ? f.poidsTotal : '')),
+          prixDirect: String(stored?.prixDirect ?? ''),
+          collapsed:  stored?.collapsed || false,
+          produits:   [],
+        });
+      }
+
       const sec = map.get(key);
       sec.produits.push({
-        id: a.id || uuid(), nom: a.nom,
-        quantite: a.quantite || 1,
-        prixUnitaire: a.prixUnitaire || (a.typeCalcul === 'direct' ? (a.prixDirect || '') : ''),
+        id:           a.id || uuid(),
+        nom:          a.nom || '',
+        quantite:     a.quantite || 1,
+        prixUnitaire: String(a.prixUnitaire || ''),
       });
-      // Accumule le poids legacy dans la section
-      if (a.typeCalcul === 'poids' && parseFloat(a.poids) > 0) {
-        sec.poids = String((parseFloat(sec.poids) || 0) + (parseFloat(a.poids) || 0));
+
+      // Récupérer poids depuis poidsSectionKg si la section poids n'a pas de poids
+      if (sec.type === 'poids') {
+        if (!parseFloat(sec.poids) && parseFloat(a.poidsSectionKg) > 0)
+          sec.poids = String(a.poidsSectionKg);
+        if (!parseFloat(sec.prixKg) && parseFloat(a.prixKgArticle) > 0)
+          sec.prixKg = String(a.prixKgArticle);
+        // Compat legacy : a.poids
+        if (!parseFloat(sec.poids) && parseFloat(a.poids) > 0)
+          sec.poids = String((parseFloat(sec.poids) || 0) + parseFloat(a.poids));
+      }
+      // Récupérer prixDirect depuis totalFacture pour les sections direct
+      if (sec.type !== 'poids' && !parseFloat(sec.prixDirect) && parseFloat(a.totalFacture) > 0) {
+        sec.prixDirect = String((parseFloat(sec.prixDirect) || 0) + parseFloat(a.totalFacture));
       }
     });
-    return [...map.values()];
+
+    const result = [...map.values()];
+
+    // Si une seule section et qu'elle n'a pas encore de total alors que la facture avait un montant total
+    if (result.length === 1 && parseFloat(f.montantTotal) > 0) {
+      const single = result[0];
+      if (single.type === 'poids') {
+        if (!parseFloat(single.poids)) {
+          const pk = parseFloat(single.prixKg) || globalPrixKg;
+          single.poids = String(Math.round((parseFloat(f.montantTotal) / pk) * 100) / 100);
+        }
+      } else {
+        const artSum = calcSectionArticles(single);
+        if (artSum === 0 && !parseFloat(single.prixDirect)) {
+          single.prixDirect = String(f.montantTotal);
+        }
+      }
+    }
+
+    return result;
   };
   const [sections, setSections] = useState(() => buildSections(facture));
 
@@ -228,10 +318,17 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     if (facture) {
+      setSections(buildSections(facture));
       const dLimite = facture.dateLimite
         ? new Date(facture.dateLimite).toISOString().split('T')[0]
         : todayStr;
-      setForm(f => ({ ...f, dateLimite: dLimite }));
+      setForm({
+        ...facture,
+        articles: normalizeArticles(facture.articles),
+        payerComores: facture.payerComores || 0,
+        montantComores: String(facture.montantComores || 0),
+        dateLimite: dLimite,
+      });
     } else {
       setForm(f => ({ ...f, dateLimite: todayStr }));
     }
@@ -394,17 +491,27 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
     setSaving(true);
     const numPaye = parseFloat(form.montantPaye) || 0;
     const cappedPaye = Math.min(numPaye, montantTotal);
+    let statut = form.statut;
+    if (cappedPaye >= montantTotal && montantTotal > 0) statut = 'paye';
+    else if (cappedPaye > 0) statut = 'partiel';
+    else statut = 'non_paye';
+
+    const poidsTotal = sections.filter(s => s.type === 'poids').reduce((t, s) => t + (parseFloat(s.poids) || 0), 0);
+    const firstPoidsSec = sections.find(s => s.type === 'poids');
+    const secPrixKg = firstPoidsSec ? (parseFloat(firstPoidsSec.prixKg) || globalPrixKg) : globalPrixKg;
+    const fraisFret = sections.filter(s => s.type === 'poids').reduce((t, s) => t + calcSectionTotal(s), 0);
+
     const data = {
       ...form,
+      statut,
       sections,
       articles: flattenSections(sections),
       montantTotal,
       montantPaye: cappedPaye,
       montantComores: parseFloat(form.montantComores) || 0,
-      // Champs legacy remis à zéro (plus utilisés)
-      poidsTotal: 0,
-      prixKg: globalPrixKg,
-      fraisFret: 0,
+      poidsTotal,
+      prixKg: secPrixKg,
+      fraisFret,
     };
     onSave(data).finally(() => setSaving(false));
   };
@@ -453,7 +560,24 @@ export default function FactureModal({ facture, onClose, onSave, prixKg, devise 
             <Icon size={15} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
-            <span style={{ fontWeight: 800, fontSize: 13.5 }}>{isPoids ? 'Tarif au poids' : 'Prix direct'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 800, fontSize: 13.5 }}>{isPoids ? 'Tarif au poids' : 'Prix direct'}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const newType = isPoids ? 'direct' : 'poids';
+                  updateSection(s.id, 'type', newType);
+                  if (newType === 'poids' && !s.prixKg) {
+                    updateSection(s.id, 'prixKg', String(globalPrixKg));
+                  }
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '2px 8px', fontSize: 10.5, height: 'auto', borderRadius: 6, opacity: 0.9 }}
+                title={isPoids ? 'Passer cette section en Prix direct' : 'Passer cette section en Tarif au poids'}
+              >
+                Passer en {isPoids ? 'Prix direct' : 'Tarif poids'}
+              </button>
+            </div>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.produits.filter(p => p.nom).length} produit(s)</span>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

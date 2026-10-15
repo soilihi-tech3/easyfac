@@ -48,6 +48,17 @@ const convertFactureToView = (f) => {
       total: convertCurrency(a.total, baseDevise, activeViewDevise)
     }));
   }
+  if (cloned.sections && Array.isArray(cloned.sections)) {
+    cloned.sections = cloned.sections.map(s => ({
+      ...s,
+      prixKg: s.prixKg ? String(convertCurrency(s.prixKg, baseDevise, activeViewDevise)) : s.prixKg,
+      prixDirect: s.prixDirect ? String(convertCurrency(s.prixDirect, baseDevise, activeViewDevise)) : s.prixDirect,
+      produits: (s.produits || []).map(p => ({
+        ...p,
+        prixUnitaire: p.prixUnitaire ? String(convertCurrency(p.prixUnitaire, baseDevise, activeViewDevise)) : p.prixUnitaire,
+      }))
+    }));
+  }
   return cloned;
 };
 
@@ -66,6 +77,17 @@ const convertFactureToBase = (data) => {
       a.total = convertCurrency(a.total, activeViewDevise, baseDevise);
       return a;
     });
+  }
+  if (cloned.sections && Array.isArray(cloned.sections)) {
+    cloned.sections = cloned.sections.map(s => ({
+      ...s,
+      prixKg: s.prixKg ? String(convertCurrency(s.prixKg, activeViewDevise, baseDevise)) : s.prixKg,
+      prixDirect: s.prixDirect ? String(convertCurrency(s.prixDirect, activeViewDevise, baseDevise)) : s.prixDirect,
+      produits: (s.produits || []).map(p => ({
+        ...p,
+        prixUnitaire: p.prixUnitaire ? String(convertCurrency(p.prixUnitaire, activeViewDevise, baseDevise)) : p.prixUnitaire,
+      }))
+    }));
   }
   return cloned;
 };

@@ -97,6 +97,9 @@ app.get('/api/status', async (req, res) => {
       await pool.query("ALTER TABLE factures ADD COLUMN recuperation VARCHAR(50) DEFAULT 'non_recupere'");
     } catch (e) {}
     try {
+      await pool.query('ALTER TABLE factures ADD COLUMN sections LONGTEXT DEFAULT NULL');
+    } catch (e) {}
+    try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS user_activity_logs (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1154,14 +1157,25 @@ app.get('/api/factures', async (req, res) => {
     const userMap = {};
     users.forEach(u => userMap[u.id] = u);
 
-    const result = factures.map(f => ({
-      ...f,
-      articles: articlesMap[f.id] || [],
-      paiements: paiementsMap[f.id] || [],
-      expediteur: clientMap[f.expediteurId] || null,
-      destinataire: clientMap[f.destinataireId] || null,
-      creePar: userMap[f.userId] || null
-    }));
+    const result = factures.map(f => {
+      let parsedSections = null;
+      if (f.sections) {
+        try {
+          parsedSections = typeof f.sections === 'string' ? JSON.parse(f.sections) : f.sections;
+        } catch (e) {
+          parsedSections = null;
+        }
+      }
+      return {
+        ...f,
+        sections: parsedSections,
+        articles: articlesMap[f.id] || [],
+        paiements: paiementsMap[f.id] || [],
+        expediteur: clientMap[f.expediteurId] || null,
+        destinataire: clientMap[f.destinataireId] || null,
+        creePar: userMap[f.userId] || null
+      };
+    });
 
     await cacheService.set(cacheKey, result, 60);
     res.setHeader('Cache-Control', 'private, max-age=60');
@@ -1176,7 +1190,7 @@ app.post('/api/factures', async (req, res) => {
   try {
     await connection.beginTransaction();
     const id = uuidv4();
-    let { numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, articles } = req.body;
+    let { numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, articles, sections } = req.body;
     if (req.user.role === 'employee' && req.user.voyageId) voyageId = req.user.voyageId;
 
     if (dateLimite) {
@@ -1201,9 +1215,10 @@ app.post('/api/factures', async (req, res) => {
       );
     }
 
+    const sectionsStr = sections ? JSON.stringify(sections) : null;
     await connection.query(
-      'INSERT INTO factures (id, numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, userId, boutique_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, montantPaye || 0, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, req.user.id, req.user.boutique_id]
+      'INSERT INTO factures (id, numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, userId, boutique_id, sections) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, montantPaye || 0, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, req.user.id, req.user.boutique_id, sectionsStr]
     );
 
     if (articles && articles.length > 0) {
@@ -1231,7 +1246,7 @@ app.post('/api/factures', async (req, res) => {
 
     await connection.commit();
     await cacheService.delByPrefix(`api_factures_${req.user.boutique_id}`);
-    res.json({ id, ...req.body, userId: req.user.id, articles: aRows, paiements: pRows });
+    res.json({ id, ...req.body, userId: req.user.id, sections: sections || null, articles: aRows, paiements: pRows });
   } catch (error) {
     await connection.rollback();
     res.status(500).json({ error: error.message });
@@ -1244,20 +1259,21 @@ app.put('/api/factures/:id', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    let { numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, articles } = req.body;
+    let { numero, voyageId, expediteurId, destinataireId, poidsTotal, prixKg, fraisFret, montantTotal, montantPaye, modePaiement, statut, dateLimite, payerComores, montantComores, articles, sections } = req.body;
     if (req.user.role === 'employee' && req.user.voyageId) voyageId = req.user.voyageId;
     const factureId = req.params.id;
 
     // Verify if existing invoice is already paid
+    const isAdmin = req.user && req.user.role === 'admin';
     const [existingFactures] = await connection.query('SELECT statut, montantTotal, montantPaye FROM factures WHERE id = ?', [factureId]);
     let oldPaye = 0;
     if (existingFactures.length > 0) {
       const ef = existingFactures[0];
       oldPaye = Number(ef.montantPaye || 0);
       const wasPaid = ef.statut === 'paye' || ef.statut === 'Payée' || (Number(ef.montantPaye) >= Number(ef.montantTotal) && Number(ef.montantTotal) > 0);
-      if (wasPaid) {
+      if (wasPaid && !isAdmin) {
         await connection.rollback();
-        return res.status(400).json({ error: "Une facture déjà payée ne peut pas être modifiée." });
+        return res.status(403).json({ error: "Une facture déjà payée ne peut être modifiée que par un administrateur." });
       }
     }
 
@@ -1274,9 +1290,10 @@ app.put('/api/factures/:id', async (req, res) => {
     const newPaye = Number(montantPaye || 0);
     const addedPayment = newPaye - oldPaye;
 
+    const sectionsStr = sections ? JSON.stringify(sections) : null;
     await connection.query(
-      'UPDATE factures SET numero = ?, voyageId = ?, expediteurId = ?, destinataireId = ?, poidsTotal = ?, prixKg = ?, fraisFret = ?, montantTotal = ?, montantPaye = ?, modePaiement = ?, statut = ?, dateLimite = ?, payerComores = ?, montantComores = ? WHERE id = ? AND boutique_id = ?',
-      [numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, newPaye, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, factureId, req.user.boutique_id]
+      'UPDATE factures SET numero = ?, voyageId = ?, expediteurId = ?, destinataireId = ?, poidsTotal = ?, prixKg = ?, fraisFret = ?, montantTotal = ?, montantPaye = ?, modePaiement = ?, statut = ?, dateLimite = ?, payerComores = ?, montantComores = ?, sections = ? WHERE id = ? AND boutique_id = ?',
+      [numero, voyageId || null, expediteurId || null, destinataireId || null, poidsTotal || 0, prixKg || 0, fraisFret || 0, montantTotal || 0, newPaye, modePaiement || 'cash', statut || 'non_paye', dateLimite, payerComores ? 1 : 0, montantComores || 0, sectionsStr, factureId, req.user.boutique_id]
     );
 
     // If new payment amount was added during payment update, attribute the added amount to current user
@@ -1308,6 +1325,7 @@ app.put('/api/factures/:id', async (req, res) => {
     res.json({
       id: factureId,
       ...req.body,
+      sections: sections || null,
       montantPaye: newPaye,
       statut: statut,
       articles: aRows,

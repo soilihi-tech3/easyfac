@@ -16,10 +16,19 @@ export default function Login() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
+  const [statusMessage, setStatusMessage] = useState('');
+
   useEffect(() => {
     if (user) {
       navigate('/', { replace: true });
+      return;
     }
+
+    // Silently pre-warm backend connection so TLS and DNS are ready when user taps submit
+    try {
+      fetch(`${API_URL}/api/ping`, { method: 'GET', keepalive: true }).catch(() => {});
+      fetch('/api/ping', { method: 'GET', keepalive: true }).catch(() => {});
+    } catch (_) {}
   }, [user, navigate]);
 
   const handleSubmit = async (e) => {
@@ -27,65 +36,108 @@ export default function Login() {
     setLoading(true);
     setError('');
     setServerWakingUp(false);
-
-    // Render.com free tier cold start can take up to 45-60s
-    // Show a reassuring notice after 3.5s so user knows it is waking up
-    const wakingTimer = setTimeout(() => {
-      setServerWakingUp(true);
-    }, 3500);
-
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        try { if (controller) controller.abort(); } catch (_) {}
-        const err = new Error('timeout');
-        err.name = 'AbortError';
-        reject(err);
-      }, 30000);
-    });
+    setStatusMessage('Connexion en cours...');
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    try {
-      const res = await Promise.race([
-        fetch(`${API_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-          ...(controller ? { signal: controller.signal } : {})
-        }),
-        timeoutPromise
-      ]);
+    // Timer 1: Reassure user after 3.5s
+    const timer1 = setTimeout(() => {
+      setServerWakingUp(true);
+      setStatusMessage('Le serveur démarre... Veuillez patienter.');
+    }, 3500);
 
-      clearTimeout(timeoutId);
-      clearTimeout(wakingTimer);
+    // Timer 2: Reassure slow mobile data users after 15s
+    const timer2 = setTimeout(() => {
+      setStatusMessage('Connexion mobile en cours... Finalisation de la session, merci de patienter.');
+    }, 15000);
 
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Le serveur backend est en cours de réveil ou indisponible. Veuillez patienter quelques secondes et réessayer.');
+    // Timer 3: After 30s
+    const timer3 = setTimeout(() => {
+      setStatusMessage('Réseau mobile lent détecté. Maintien de la connexion en cours...');
+    }, 30000);
+
+    const clearAllTimers = () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+
+    // Candidate URLs: first direct to Render, then fallback to Vercel proxy
+    const endpoints = [
+      `${API_URL}/api/auth/login`,
+      `/api/auth/login`
+    ];
+
+    let lastError = null;
+
+    for (let i = 0; i < endpoints.length; i++) {
+      const url = endpoints[i];
+      if (i > 0) {
+        setStatusMessage('Nouvelle tentative via route sécurisée...');
       }
 
-      const data = await res.json();
+      try {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            try { if (controller) controller.abort(); } catch (_) {}
+            const err = new Error('timeout');
+            err.name = 'AbortError';
+            reject(err);
+          }, 45000); // 45s per endpoint
+        });
 
-      if (!res.ok) throw new Error(data.error || 'Erreur de connexion');
+        const res = await Promise.race([
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+            ...(controller ? { signal: controller.signal } : {})
+          }),
+          timeoutPromise
+        ]);
 
-      login(data.user, data.token);
-      navigate('/', { replace: true });
-    } catch (err) {
-      clearTimeout(timeoutId);
-      clearTimeout(wakingTimer);
-      if (err.name === 'AbortError') {
-        setError("Impossible de joindre le serveur (aucune réponse après 30 s). Vérifiez votre connexion internet (essayez en Wi-Fi ou avec un autre réseau), puis réessayez.");
-      } else if (err instanceof TypeError || /fetch|network/i.test(err.message || '')) {
-        setError("Erreur réseau : impossible de joindre le serveur. Vérifiez votre connexion internet ou la date/heure du téléphone, puis réessayez.");
-      } else {
-        setError(err.message || 'Erreur de connexion au serveur');
+        clearTimeout(timeoutId);
+
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Le serveur est temporairement indisponible.');
+        }
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          // If explicit credentials error, do not retry other endpoint!
+          throw new Error(data.error || 'Erreur de connexion');
+        }
+
+        clearAllTimers();
+        login(data.user, data.token);
+        navigate('/', { replace: true });
+        return; // Success!
+      } catch (err) {
+        lastError = err;
+        // If wrong credentials, stop immediately and show error
+        if (err.message && (err.message.includes('Identifiants incorrects') || err.message.includes('désactivé') || err.message.includes('maintenance'))) {
+          break;
+        }
+        console.warn(`Connection to ${url} failed, trying next route if available:`, err.message);
       }
-    } finally {
-      setLoading(false);
-      setServerWakingUp(false);
+    }
+
+    clearAllTimers();
+    setLoading(false);
+    setServerWakingUp(false);
+    setStatusMessage('');
+
+    if (lastError?.name === 'AbortError') {
+      setError("La connexion mobile met trop de temps à répondre. Le serveur vient de se réveiller : veuillez réappuyer sur 'Se connecter'.");
+    } else if (lastError instanceof TypeError || /fetch|network/i.test(lastError?.message || '')) {
+      setError("Impossible de joindre le serveur avec la qualité actuelle du réseau mobile. Veuillez réappuyer sur 'Se connecter' pour réessayer.");
+    } else {
+      setError(lastError?.message || 'Erreur de connexion au serveur');
     }
   };
 
@@ -135,7 +187,7 @@ export default function Login() {
         {serverWakingUp && !error && (
           <div className="login-error-alert warning" style={{ borderColor: 'var(--brand)', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--text-main, #1e293b)' }}>
             <AlertCircle size={17} style={{ flexShrink: 0, color: 'var(--brand, #2563eb)' }} />
-            <span style={{ fontSize: '0.85rem' }}>Le serveur démarre (mise en route après inactivité)... Veuillez patienter un instant.</span>
+            <span style={{ fontSize: '0.85rem' }}>{statusMessage || 'Le serveur démarre (mise en route après inactivité)... Veuillez patienter.'}</span>
           </div>
         )}
 
@@ -195,7 +247,7 @@ export default function Login() {
             className="login-submit-btn"
             disabled={loading}
           >
-            {loading ? (serverWakingUp ? 'Démarrage du serveur...' : 'Connexion en cours...') : 'Se connecter'}
+            {loading ? (statusMessage || 'Connexion en cours...') : 'Se connecter'}
           </button>
         </form>
 

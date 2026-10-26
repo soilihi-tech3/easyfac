@@ -77,6 +77,11 @@ const pool = mysql.createPool({
 // Helper for generating UUIDs manually since some old MySQL versions don't have UUID()
 const { v4: uuidv4 } = require('uuid');
 
+// Ultra-fast ping endpoint for pre-warming connections on mobile networks
+app.get('/api/ping', (req, res) => {
+  res.json({ status: 'ok', time: Date.now() });
+});
+
 // Check DB Connection & Init Admin
 app.get('/api/status', async (req, res) => {
   try {

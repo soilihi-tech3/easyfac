@@ -17,33 +17,36 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (token) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
       // Fetch user profile
       fetch(`${API_URL}/api/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal
       })
-        .then(res => res.json())
-        .then(data => {
-          if (data.user) {
-            setUser(data.user);
-            localStorage.setItem('user', JSON.stringify(data.user));
-          } else {
+        .then(res => {
+          clearTimeout(timeoutId);
+          if (res.status === 401 || res.status === 403) {
+            // Real authentication failure (token expired or revoked)
             setUser(null);
             setToken(null);
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            return null;
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (data && data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
           }
         })
         .catch((err) => {
-          // If we are offline or network is disconnected, retain cached session
-          if (!window.navigator.onLine) {
-            console.log("Offline mode: keeping cached auth session.");
-            return;
-          }
-          // Real authentication failure
-          setUser(null);
-          setToken(null);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+          clearTimeout(timeoutId);
+          // Network error or timeout: retain cached session, never disconnect the user
+          console.warn('Network issue verifying auth profile, retaining cached user session:', err.message);
         })
         .finally(() => setLoading(false));
     } else {

@@ -12,12 +12,13 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverWakingUp, setServerWakingUp] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [user, navigate]);
 
@@ -25,13 +26,30 @@ export default function Login() {
     if (e) e.preventDefault();
     setLoading(true);
     setError('');
+    setServerWakingUp(false);
+
+    // Render.com free tier cold start can take up to 45-60s
+    // Show a reassuring notice after 3.5s so user knows it is waking up
+    const wakingTimer = setTimeout(() => {
+      setServerWakingUp(true);
+    }, 3500);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 40000);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
+      clearTimeout(wakingTimer);
 
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
@@ -43,10 +61,18 @@ export default function Login() {
       if (!res.ok) throw new Error(data.error || 'Erreur de connexion');
 
       login(data.user, data.token);
+      navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message || 'Erreur de connexion au serveur');
+      clearTimeout(timeoutId);
+      clearTimeout(wakingTimer);
+      if (err.name === 'AbortError') {
+        setError('Le serveur ou votre connexion met trop de temps à répondre. Si le serveur était en veille, il vient de se réveiller. Veuillez réappuyer sur Se connecter.');
+      } else {
+        setError(err.message || 'Erreur de connexion au serveur');
+      }
     } finally {
       setLoading(false);
+      setServerWakingUp(false);
     }
   };
 
@@ -55,7 +81,13 @@ export default function Login() {
     setPassword('admin123');
     setTimeout(() => {
       const form = document.querySelector('form');
-      if (form) form.requestSubmit();
+      if (form) {
+        if (typeof form.requestSubmit === 'function') {
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }
     }, 100);
   };
 
@@ -87,6 +119,13 @@ export default function Login() {
           </div>
         )}
 
+        {serverWakingUp && !error && (
+          <div className="login-error-alert warning" style={{ borderColor: 'var(--brand)', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--text-main, #1e293b)' }}>
+            <AlertCircle size={17} style={{ flexShrink: 0, color: 'var(--brand, #2563eb)' }} />
+            <span style={{ fontSize: '0.85rem' }}>Le serveur démarre (mise en route après inactivité)... Veuillez patienter un instant.</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="login-form">
           {/* Email field with baseline underline */}
           <div className="login-form-group">
@@ -102,6 +141,9 @@ export default function Login() {
                 required
                 placeholder="Email Address"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
               />
             </div>
           </div>
@@ -120,6 +162,9 @@ export default function Login() {
                 required
                 placeholder="Password"
                 autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
               />
               <button
                 type="button"
@@ -137,7 +182,7 @@ export default function Login() {
             className="login-submit-btn"
             disabled={loading}
           >
-            {loading ? 'Connexion en cours...' : 'Se connecter'}
+            {loading ? (serverWakingUp ? 'Démarrage du serveur...' : 'Connexion en cours...') : 'Se connecter'}
           </button>
         </form>
 

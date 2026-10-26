@@ -12,18 +12,30 @@ export default function PwaInstallPrompt({ isOpen, onClose }) {
   useEffect(() => {
     // 1. Check if running in standalone mode (already installed PWA)
     const checkStandalone = () => {
-      const isStandaloneMode =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.navigator.standalone === true ||
-        document.referrer.includes('android-app://');
-      setIsStandalone(isStandaloneMode);
+      try {
+        const isStandaloneMode =
+          (window.matchMedia && window.matchMedia('(display-mode: standalone)')?.matches) ||
+          window.navigator.standalone === true ||
+          (document.referrer && document.referrer.includes('android-app://'));
+        setIsStandalone(Boolean(isStandaloneMode));
+      } catch {
+        setIsStandalone(false);
+      }
     };
 
     checkStandalone();
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    const handleMediaChange = (e) => setIsStandalone(e.matches);
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleMediaChange);
+    let mediaQuery = null;
+    let handleMediaChange = null;
+    if (window.matchMedia) {
+      try {
+        mediaQuery = window.matchMedia('(display-mode: standalone)');
+        handleMediaChange = (e) => setIsStandalone(Boolean(e.matches));
+        if (mediaQuery.addEventListener) {
+          mediaQuery.addEventListener('change', handleMediaChange);
+        } else if (mediaQuery.addListener) {
+          mediaQuery.addListener(handleMediaChange);
+        }
+      } catch (err) {}
     }
 
     // 2. Detect OS / Device
@@ -48,8 +60,12 @@ export default function PwaInstallPrompt({ isOpen, onClose }) {
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleMediaChange);
+      if (mediaQuery && handleMediaChange) {
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', handleMediaChange);
+        } else if (mediaQuery.removeListener) {
+          mediaQuery.removeListener(handleMediaChange);
+        }
       }
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);

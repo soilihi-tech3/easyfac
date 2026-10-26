@@ -41,36 +41,54 @@ export default function Layout({ children }) {
 
   const [online, setOnline] = useState(window.navigator.onLine);
   const [isAppStandalone, setIsAppStandalone] = useState(() => {
-    return (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true ||
-      document.referrer.includes('android-app://')
-    );
+    try {
+      return Boolean(
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)')?.matches) ||
+        window.navigator.standalone === true ||
+        (document.referrer && document.referrer.includes('android-app://'))
+      );
+    } catch {
+      return false;
+    }
   });
 
   const [showPwaModal, setShowPwaModal] = useState(() => {
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      window.navigator.standalone === true ||
-      document.referrer.includes('android-app://');
-    if (standalone) return false;
-    return !sessionStorage.getItem('ef_pwa_dismissed');
+    try {
+      const standalone =
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)')?.matches) ||
+        window.navigator.standalone === true ||
+        (document.referrer && document.referrer.includes('android-app://'));
+      if (standalone) return false;
+      return !sessionStorage.getItem('ef_pwa_dismissed');
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(display-mode: standalone)');
-    const handleChange = (e) => {
-      setIsAppStandalone(e.matches);
-      if (e.matches) setShowPwaModal(false);
-    };
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
-    }
-    return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleChange);
+    if (!window.matchMedia) return;
+    try {
+      const mediaQuery = window.matchMedia('(display-mode: standalone)');
+      if (!mediaQuery) return;
+      const handleChange = (e) => {
+        setIsAppStandalone(Boolean(e.matches));
+        if (e.matches) setShowPwaModal(false);
+      };
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', handleChange);
+      } else if (mediaQuery.addListener) {
+        mediaQuery.addListener(handleChange);
       }
-    };
+      return () => {
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', handleChange);
+        } else if (mediaQuery.removeListener) {
+          mediaQuery.removeListener(handleChange);
+        }
+      };
+    } catch (e) {
+      console.warn('matchMedia not supported:', e);
+    }
   }, []);
 
   useEffect(() => {

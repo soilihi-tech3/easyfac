@@ -192,8 +192,9 @@ const recordUserLog = async (userId, type, description) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(`Login attempt for email: "${email}" with password length: ${password?.length}`);
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const cleanEmail = (email || '').trim().toLowerCase();
+    console.log(`Login attempt for email: "${cleanEmail}" with password length: ${password?.length}`);
+    const [users] = await pool.query('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail]);
     if (users.length === 0) {
       console.log('User not found in DB.');
       return res.status(401).json({ error: 'Identifiants incorrects' });
@@ -378,17 +379,19 @@ app.post('/api/users', async (req, res) => {
     const activeVal = active === undefined ? 1 : (active ? 1 : 0);
     const boutiqueId = req.user.boutique_id || null;
 
+    const cleanEmail = (email || '').trim().toLowerCase();
+
     // Check if email already exists
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [existing] = await pool.query('SELECT id FROM users WHERE LOWER(email) = ?', [cleanEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ error: 'Un utilisateur avec cette adresse email existe déjà.' });
     }
 
     await pool.query(
       'INSERT INTO users (id, nom, prenom, email, password, role, voyageId, permissions, telephone, active, boutique_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, nom, prenom, email, hash, role || 'employee', cleanVoyageId, permString, telephone || null, activeVal, boutiqueId]
+      [id, nom, prenom, cleanEmail, hash, role || 'employee', cleanVoyageId, permString, telephone || null, activeVal, boutiqueId]
     );
-    res.json({ id, nom, prenom, email, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
+    res.json({ id, nom, prenom, email: cleanEmail, role, voyageId: cleanVoyageId, permissions, telephone, active: activeVal });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

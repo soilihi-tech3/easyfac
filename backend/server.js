@@ -39,6 +39,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'easyfac-super-secret-key-2026';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
+app.use(cors());
+app.options('*', cors());
+
 // High Performance Middleware: Response Compression (reduces bandwidth by ~80%)
 app.use(compression());
 
@@ -52,7 +57,6 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

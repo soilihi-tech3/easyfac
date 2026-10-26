@@ -34,19 +34,30 @@ export default function Login() {
       setServerWakingUp(true);
     }, 3500);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 40000);
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        try { if (controller) controller.abort(); } catch (_) {}
+        const err = new Error('timeout');
+        err.name = 'AbortError';
+        reject(err);
+      }, 30000);
+    });
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-        signal: controller.signal
-      });
+      const res = await Promise.race([
+        fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+          ...(controller ? { signal: controller.signal } : {})
+        }),
+        timeoutPromise
+      ]);
 
       clearTimeout(timeoutId);
       clearTimeout(wakingTimer);
@@ -66,7 +77,9 @@ export default function Login() {
       clearTimeout(timeoutId);
       clearTimeout(wakingTimer);
       if (err.name === 'AbortError') {
-        setError('Le serveur ou votre connexion met trop de temps à répondre. Si le serveur était en veille, il vient de se réveiller. Veuillez réappuyer sur Se connecter.');
+        setError("Impossible de joindre le serveur (aucune réponse après 30 s). Vérifiez votre connexion internet (essayez en Wi-Fi ou avec un autre réseau), puis réessayez.");
+      } else if (err instanceof TypeError || /fetch|network/i.test(err.message || '')) {
+        setError("Erreur réseau : impossible de joindre le serveur. Vérifiez votre connexion internet ou la date/heure du téléphone, puis réessayez.");
       } else {
         setError(err.message || 'Erreur de connexion au serveur');
       }

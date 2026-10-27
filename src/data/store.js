@@ -1,6 +1,8 @@
 // EasyFac - Data Store (API based with Offline Sync Engine)
 
-export const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+export const API_URL = (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))
+  ? '' 
+  : (process.env.REACT_APP_API_URL || 'http://localhost:3001');
 
 // ---- Active Currency Information for Dynamic Viewing ----
 let activeViewDevise = 'FCFA';
@@ -256,33 +258,48 @@ export const syncOfflineData = async (onSyncProgress) => {
 };
 
 // ---- Helpers ----
-const apiCall = async (url, method = 'GET', body = null) => {
+const apiCall = async (url, method = 'GET', body = null, timeoutMs = 12000) => {
   const token = localStorage.getItem('token');
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = setTimeout(() => {
+    try { if (controller) controller.abort(); } catch (_) {}
+  }, timeoutMs);
+
   const options = { 
     method, 
     cache: 'no-store',
     headers: { 
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-    } 
+    },
+    ...(controller ? { signal: controller.signal } : {})
   };
   if (body) options.body = JSON.stringify(body);
 
   if (!isOnline()) {
+    clearTimeout(timeoutId);
     throw new Error('OFFLINE');
   }
 
-  const res = await fetch(`${API_URL}${url}`, options);
-  const contentType = res.headers.get('content-type');
-  if (!contentType || !contentType.includes('application/json')) {
-    throw new Error('Le serveur backend a retourné une réponse non-JSON ou est en cours de démarrage.');
-  }
+  try {
+    const targetUrl = url.startsWith('http') ? url : `${API_URL}${url}`;
+    const res = await fetch(targetUrl, options);
+    clearTimeout(timeoutId);
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Erreur réseau');
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Le serveur backend a retourné une réponse non-JSON ou est en cours de démarrage.');
+    }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Erreur réseau');
+    }
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
   }
-  return res.json();
 };
 
 // Listen to browser network reconnection events automatically

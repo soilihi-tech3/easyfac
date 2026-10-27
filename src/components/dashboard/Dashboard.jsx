@@ -63,7 +63,14 @@ export default function Dashboard() {
         monthly: Object.values(monthly),
       };
     }
-    return null;
+    return {
+      totalCA: 0, totalPaye: 0, totalResteAPayer: 0, totalDepenses: 0, beneficeNet: 0,
+      facturesPaye: 0, facturesPartiel: 0, facturesImpaye: 0,
+      totalClients: cachedClients.length,
+      totalFactures: cachedFac.length,
+      totalVoyages: cachedVoyages.length,
+      monthly: [],
+    };
   });
 
   const [recentFactures, setRecentFactures] = useState(() => {
@@ -167,16 +174,26 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    let isMounted = true;
     const load = async () => {
       if (isFirstLoad && getFacturesCache().length === 0) setLoading(true);
+      const timer = setTimeout(() => {
+        if (isMounted) setLoading(false);
+      }, 3500);
+
       try {
-        const [s, allFac, allDeps, clients, voyages] = await Promise.all([
-          getStats(),
+        const [facRes, depsRes, clientsRes, voyagesRes] = await Promise.allSettled([
           getFactures(),
           import('../../data/store').then(m => m.getDepenses()),
           getClients(),
           getVoyages()
         ]);
+        clearTimeout(timer);
+
+        const allFac = facRes.status === 'fulfilled' ? (facRes.value || []) : getFacturesCache();
+        const allDeps = depsRes.status === 'fulfilled' ? (depsRes.value || []) : getDepensesCache();
+        const clients = clientsRes.status === 'fulfilled' ? (clientsRes.value || []) : getClientsCache();
+        const voyages = voyagesRes.status === 'fulfilled' ? (voyagesRes.value || []) : getVoyagesCache();
 
         const employeeVoyages = user?.role === 'employee'
           ? (user.voyageId && user.voyageId !== 'all' ? voyages.filter(v => v.id === user.voyageId) : voyages)
@@ -278,18 +295,24 @@ export default function Dashboard() {
         setIsFirstLoad(false);
       } catch (err) {
         console.error(err);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-      setLoading(false);
     };
     load();
+    return () => { isMounted = false; };
   }, [refresh, isFirstLoad]);
 
-  if (loading || !stats) return <div className="page-enter" style={{ padding: 40, textAlign: 'center' }}>Chargement...</div>;
+  const currentStats = stats || {
+    totalCA: 0, totalPaye: 0, totalResteAPayer: 0, totalDepenses: 0, beneficeNet: 0,
+    facturesPaye: 0, facturesPartiel: 0, facturesImpaye: 0,
+    totalClients: 0, totalFactures: 0, totalVoyages: 0, monthly: []
+  };
 
   const kpis = [
     {
       label: "Chiffre d'affaires",
-      value: formatCurrency(stats.totalCA, devise),
+      value: formatCurrency(currentStats.totalCA, devise),
       Icon: TrendingUp,
       trend: '+12%', trendDir: 'up',
       kpiColor: 'var(--brand)',
@@ -297,7 +320,7 @@ export default function Dashboard() {
     },
     {
       label: 'Montant encaissé',
-      value: formatCurrency(stats.totalPaye, devise),
+      value: formatCurrency(currentStats.totalPaye, devise),
       Icon: CheckCircle,
       trend: '+8%', trendDir: 'up',
       kpiColor: 'var(--success)',
@@ -305,7 +328,7 @@ export default function Dashboard() {
     },
     {
       label: 'Reste à percevoir',
-      value: formatCurrency(stats.totalResteAPayer, devise),
+      value: formatCurrency(currentStats.totalResteAPayer, devise),
       Icon: Clock,
       trend: '-3%', trendDir: 'down',
       kpiColor: 'var(--warning)',
@@ -313,7 +336,7 @@ export default function Dashboard() {
     },
     {
       label: 'Bénéfice net',
-      value: formatCurrency(stats.beneficeNet, devise),
+      value: formatCurrency(currentStats.beneficeNet, devise),
       Icon: Activity,
       trend: '+15%', trendDir: 'up',
       kpiColor: 'var(--purple)',
@@ -322,25 +345,43 @@ export default function Dashboard() {
   ];
 
   const miniStats = [
-    { Icon: Users,       label: 'Clients',    val: stats.totalClients,    color: 'var(--info)', path: '/clients' },
-    { Icon: FileText,    label: 'Factures',   val: stats.totalFactures,   color: 'var(--brand)', path: '/factures' },
-    { Icon: Truck,       label: 'Voyages',    val: stats.totalVoyages || 0, color: 'var(--purple)', iconBg: 'var(--purple-muted)', path: '/voyages' },
+    { Icon: Users,       label: 'Clients',    val: currentStats.totalClients,    color: 'var(--info)', path: '/clients' },
+    { Icon: FileText,    label: 'Factures',   val: currentStats.totalFactures,   color: 'var(--brand)', path: '/factures' },
+    { Icon: Truck,       label: 'Voyages',    val: currentStats.totalVoyages || 0, color: 'var(--purple)', iconBg: 'var(--purple-muted)', path: '/voyages' },
     {
-      Icon: CheckCircle, label: 'Payées',     val: stats.facturesPaye,    color: 'var(--success)',
+      Icon: CheckCircle, label: 'Payées',     val: currentStats.facturesPaye,    color: 'var(--success)',
       iconBg: 'var(--success-muted)', path: '/factures', state: { filterStatut: 'paye' }
     },
     {
-      Icon: Clock,       label: 'Partielles', val: stats.facturesPartiel, color: 'var(--warning)',
+      Icon: Clock,       label: 'Partielles', val: currentStats.facturesPartiel, color: 'var(--warning)',
       iconBg: 'var(--warning-muted)', path: '/factures', state: { filterStatut: 'partiel' }
     },
     {
-      Icon: Activity,    label: 'Impayées',   val: stats.facturesImpaye,  color: 'var(--danger)',
+      Icon: Activity,    label: 'Impayées',   val: currentStats.facturesImpaye,  color: 'var(--danger)',
       iconBg: 'var(--danger-muted)', path: '/factures', state: { filterStatut: 'non_paye' }
     },
   ];
 
   return (
     <div className="dashboard page-enter">
+      {loading && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          padding: '8px 12px',
+          margin: '0 auto 16px',
+          borderRadius: 8,
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          fontSize: '0.85rem',
+          color: 'var(--brand, #2563eb)'
+        }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></span>
+          <span>Actualisation des données en direct...</span>
+        </div>
+      )}
       {/* ─── KPI Cards ─── */}
       <div className="kpi-grid">
         {kpis.map((k, i) => (

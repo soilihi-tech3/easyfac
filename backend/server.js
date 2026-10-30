@@ -68,7 +68,9 @@ const pool = mysql.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'easyfac_db',
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined,
+  ssl: (process.env.DB_SSL === 'true' || (process.env.DB_HOST && process.env.DB_HOST.includes('tidbcloud.com')))
+    ? { rejectUnauthorized: true }
+    : undefined,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0

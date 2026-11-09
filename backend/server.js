@@ -3,8 +3,8 @@ require('dotenv').config();
 process.on('unhandledRejection', (reason, promise) => {
   const msg = reason ? (reason.message || String(reason)) : '';
   if (
-    msg.includes('Target closed') || 
-    msg.includes('Session closed') || 
+    msg.includes('Target closed') ||
+    msg.includes('Session closed') ||
     msg.includes('Protocol error') ||
     msg.includes('Execution context was destroyed')
   ) {
@@ -16,8 +16,8 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (err) => {
   const msg = err ? (err.message || String(err)) : '';
   if (
-    msg.includes('Target closed') || 
-    msg.includes('Session closed') || 
+    msg.includes('Target closed') ||
+    msg.includes('Session closed') ||
     msg.includes('Protocol error')
   ) {
     return;
@@ -91,25 +91,25 @@ app.get('/api/status', async (req, res) => {
     // Safely add new columns if they do not exist
     try {
       await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query('ALTER TABLE users ADD COLUMN lastLoginAt DATETIME DEFAULT NULL');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query('ALTER TABLE factures ADD COLUMN rappelAutomatiqueSent TINYINT DEFAULT 0');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query("ALTER TABLE factures ADD COLUMN recuperation VARCHAR(50) DEFAULT 'non_recupere'");
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query('ALTER TABLE factures ADD COLUMN sections LONGTEXT DEFAULT NULL');
-    } catch (e) {}
+    } catch (e) { }
     try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS user_activity_logs (
@@ -194,7 +194,7 @@ const recordUserLog = async (userId, type, description) => {
           'INSERT INTO user_activity_logs (userId, type, description, createdAt) VALUES (?, ?, ?, ?)',
           [userId, type, description, new Date()]
         );
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 };
@@ -210,7 +210,7 @@ app.post('/api/auth/login', async (req, res) => {
       console.log('User not found in DB.');
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
-    
+
     const user = users[0];
     if (user.active === 0 || user.active === false) {
       return res.status(401).json({ error: "Votre compte a été désactivé par l'administrateur." });
@@ -220,7 +220,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (user.boutique_id) {
       const [boutique] = await pool.query('SELECT * FROM boutiques WHERE id = ?', [user.boutique_id]);
       if (boutique.length > 0 && boutique[0].statut === 'inactif') {
-        return res.status(403).json({ error: "Votre espace plateforme est actuellement en maintenance. Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
+        return res.status(403).json({ error: "Votre espace plateforme est bloqué . Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
       }
     }
 
@@ -229,7 +229,7 @@ app.post('/api/auth/login', async (req, res) => {
       console.log('Password mismatch.');
       return res.status(401).json({ error: 'Identifiants incorrects' });
     }
-    
+
     // Update lastLoginAt timestamp (auto-add column if database schema is not migrated)
     const now = new Date();
     try {
@@ -248,13 +248,13 @@ app.post('/api/auth/login', async (req, res) => {
 
     await recordUserLog(user.id, 'LOGIN', 'Connexion à l\'application');
 
-    const token = jwt.sign({ 
-      id: user.id, 
-      role: user.role, 
-      voyageId: user.voyageId, 
-      boutique_id: user.boutique_id 
+    const token = jwt.sign({
+      id: user.id,
+      role: user.role,
+      voyageId: user.voyageId,
+      boutique_id: user.boutique_id
     }, JWT_SECRET, { expiresIn: '7d' });
-    
+
     const { password: _, ...userWithoutPass } = user;
     res.json({ token, user: userWithoutPass });
   } catch (error) {
@@ -266,7 +266,7 @@ app.post('/api/auth/login', async (req, res) => {
 const authMiddleware = async (req, res, next) => {
   // Allow status, cron/reminders, and exchange-rates endpoints without JWT
   if (req.path === '/status' || req.path === '/cron/reminders' || req.path === '/exchange-rates') return next();
-  
+
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'Token manquant' });
   const token = header.split(' ')[1];
@@ -278,7 +278,7 @@ const authMiddleware = async (req, res, next) => {
     if (decoded.boutique_id) {
       const [boutiques] = await pool.query('SELECT statut FROM boutiques WHERE id = ?', [decoded.boutique_id]);
       if (boutiques.length > 0 && boutiques[0].statut === 'inactif') {
-        return res.status(403).json({ error: "Votre espace plateforme est actuellement en maintenance. Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
+        return res.status(403).json({ error: "Votre espace plateforme est bloqué . Veuillez contacter l'administrateur. Désolé pour cette interruption et merci pour votre compréhension." });
       }
     }
     next();
@@ -301,7 +301,7 @@ app.post('/api/auth/logout', async (req, res) => {
             await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
             await pool.query('UPDATE users SET lastLogoutAt = ? WHERE id = ?', [new Date(), req.user.id]);
             await recordUserLog(req.user.id, 'LOGOUT', 'Déconnexion de l\'application');
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
@@ -340,7 +340,7 @@ app.get('/api/users', async (req, res) => {
         try {
           await pool.query('ALTER TABLE users ADD COLUMN lastLoginAt DATETIME DEFAULT NULL');
           await pool.query('ALTER TABLE users ADD COLUMN lastLogoutAt DATETIME DEFAULT NULL');
-        } catch (e) {}
+        } catch (e) { }
         [rows] = await pool.query(
           'SELECT id, nom, prenom, email, role, voyageId, permissions, telephone, active, createdAt FROM users WHERE (boutique_id = ? OR (boutique_id IS NULL AND ? IS NULL)) ORDER BY createdAt DESC',
           [boutiqueId, boutiqueId]
@@ -668,7 +668,7 @@ app.put('/api/depenses/:id', async (req, res) => {
     let { nom, montant, quantite, voyageId } = req.body;
     const boutique_id = req.user.role === 'super_admin' ? 'super_admin' : req.user.boutique_id;
     if (req.user.role === 'employee' && req.user.voyageId) voyageId = req.user.voyageId;
-    
+
     let query = 'UPDATE depenses SET nom = ?, montant = ?, quantite = ?, voyageId = ? WHERE id = ? AND boutique_id = ?';
     let params = [nom, montant, quantite || 1, voyageId || null, req.params.id, boutique_id];
     if (req.user.role === 'super_admin') {
@@ -764,7 +764,7 @@ app.put('/api/parametres', async (req, res) => {
         [nextId, req.user.boutique_id, JSON.stringify(entreprise), JSON.stringify(config)]
       );
     }
-    
+
     // Invalidate cache immediately
     await cacheService.del(`api_parametres_${req.user.boutique_id}`);
 
@@ -895,14 +895,14 @@ app.put('/api/modules', async (req, res) => {
   try {
     const { modules } = req.body;
     const [existing] = await pool.query("SELECT id, config FROM settings WHERE boutique_id = 'super_admin'");
-    
+
     let currentConfig = {};
     if (existing.length > 0 && existing[0].config) {
       currentConfig = typeof existing[0].config === 'string' ? JSON.parse(existing[0].config) : existing[0].config;
     }
-    
+
     const updatedConfig = { ...currentConfig, modules };
-    
+
     if (existing.length > 0) {
       await pool.query(
         "UPDATE settings SET config = ? WHERE boutique_id = 'super_admin'",
@@ -916,7 +916,7 @@ app.put('/api/modules', async (req, res) => {
         [nextId, JSON.stringify({ nom: 'Super Admin System' }), JSON.stringify(updatedConfig)]
       );
     }
-    
+
     await cacheService.del('api_modules');
 
     res.json({ success: true, modules });
@@ -992,11 +992,11 @@ async function runRemindersForBoutique(boutiqueId) {
     const phone = expediteur?.telephone || destinataire?.telephone;
     const nomClient = expediteur?.nom || destinataire?.nom || '';
     const prenomClient = expediteur?.prenom || destinataire?.prenom || '';
-    
+
     if (!phone) continue;
-    
+
     const reste = facture.montantTotal - facture.montantPaye;
-    
+
     let dateStr = "immédiatement";
     if (facture.dateLimite) {
       const d = new Date(facture.dateLimite);
@@ -1137,11 +1137,11 @@ app.get('/api/factures', async (req, res) => {
       await cacheService.set(cacheKey, [], 60);
       return res.json([]);
     }
-    
+
     // Fetch only the articles for these specific factures
     const factureIds = factures.map(f => f.id);
     const [articles] = await pool.query('SELECT * FROM facture_articles WHERE factureId IN (?)', [factureIds]);
-    
+
     // Group articles by factureId
     const articlesMap = {};
     articles.forEach(a => {
@@ -1154,7 +1154,7 @@ app.get('/api/factures', async (req, res) => {
     try {
       const [pRows] = await pool.query('SELECT * FROM facture_paiements WHERE factureId IN (?)', [factureIds]);
       paiements = pRows;
-    } catch (e) {}
+    } catch (e) { }
 
     const paiementsMap = {};
     paiements.forEach(p => {
@@ -1252,7 +1252,7 @@ app.post('/api/factures', async (req, res) => {
           'INSERT INTO facture_paiements (id, factureId, userId, montant, createdAt) VALUES (?, ?, ?, ?, ?)',
           [uuidv4(), id, req.user.id, initialPaye, new Date()]
         );
-      } catch (e) {}
+      } catch (e) { }
     }
 
     const [pRows] = await connection.query('SELECT * FROM facture_paiements WHERE factureId = ?', [id]);
@@ -1317,7 +1317,7 @@ app.put('/api/factures/:id', async (req, res) => {
           'INSERT INTO facture_paiements (id, factureId, userId, montant, createdAt) VALUES (?, ?, ?, ?, ?)',
           [uuidv4(), factureId, req.user.id, addedPayment, new Date()]
         );
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // Replace all articles
@@ -1369,7 +1369,7 @@ app.delete('/api/factures/:id', async (req, res) => {
         return res.status(403).json({ error: "Une facture déjà payée ne peut être supprimée que par un administrateur." });
       }
     }
-    
+
     // 1. Delete associated payments and articles to prevent MySQL foreign key constraint failure
     try {
       await connection.query('DELETE FROM facture_paiements WHERE factureId = ?', [req.params.id]);
@@ -1435,7 +1435,7 @@ app.get('/api/epargnes', async (req, res) => {
       params = [req.user.boutique_id, req.user.voyageId];
     }
     const [rows] = await pool.query(query, params);
-    
+
     // Conjoin the user details
     const [users] = await pool.query('SELECT id, nom, prenom, role FROM users WHERE boutique_id = ?', [req.user.boutique_id]);
     const userMap = users.reduce((m, u) => { m[u.id] = u; return m; }, {});
@@ -1443,7 +1443,7 @@ app.get('/api/epargnes', async (req, res) => {
       ...r,
       creePar: r.userId ? userMap[r.userId] : null
     }));
-    
+
     res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1497,7 +1497,7 @@ app.get('/api/remboursements', async (req, res) => {
       params = [req.user.boutique_id, req.user.voyageId];
     }
     const [rows] = await pool.query(query, params);
-    
+
     // Conjoin the user details
     const [users] = await pool.query('SELECT id, nom, prenom, role FROM users WHERE boutique_id = ?', [req.user.boutique_id]);
     const userMap = users.reduce((m, u) => { m[u.id] = u; return m; }, {});
@@ -1505,7 +1505,7 @@ app.get('/api/remboursements', async (req, res) => {
       ...r,
       creePar: r.userId ? userMap[r.userId] : null
     }));
-    
+
     res.json(enriched);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1613,9 +1613,9 @@ app.post('/api/superadmin/boutiques', superAdminMiddleware, async (req, res) => 
     await connection.beginTransaction();
     const { nom, telephone, adresse, adminEmail, adminPassword, adminNom, adminPrenom, montantMensuel } = req.body;
     if (!nom) return res.status(400).json({ error: 'Le nom de la boutique est requis.' });
-    
+
     const boutiqueId = uuidv4();
-    
+
     // Create boutique with contact details and monthly payment
     await connection.query(
       'INSERT INTO boutiques (id, nom, telephone, adresse, statut, montant_mensuel) VALUES (?, ?, ?, ?, ?, ?)',
@@ -1631,7 +1631,7 @@ app.post('/api/superadmin/boutiques', superAdminMiddleware, async (req, res) => 
       'INSERT INTO settings (id, boutique_id, entreprise, config) VALUES (?, ?, ?, ?)',
       [nextId, boutiqueId, JSON.stringify(defaultEntreprise), JSON.stringify(defaultConfig)]
     );
-    
+
     // Create default admin user if credentials provided
     if (adminEmail && adminPassword) {
       const [existing] = await connection.query('SELECT 1 FROM users WHERE email = ?', [adminEmail]);
@@ -1644,7 +1644,7 @@ app.post('/api/superadmin/boutiques', superAdminMiddleware, async (req, res) => 
         [uuidv4(), adminNom || 'Admin', adminPrenom || 'Boutique', adminEmail, userHash, 'admin', 1, boutiqueId]
       );
     }
-    
+
     await connection.commit();
     res.json({ id: boutiqueId, nom, telephone, adresse, statut: 'actif', createdAt: new Date(), montant_mensuel: montantMensuel });
   } catch (error) {
@@ -1704,10 +1704,10 @@ app.delete('/api/superadmin/boutiques/:id', superAdminMiddleware, async (req, re
     await connection.query('DELETE FROM voyages WHERE boutique_id = ?', [boutiqueId]);
     await connection.query('DELETE FROM users WHERE boutique_id = ?', [boutiqueId]);
     await connection.query('DELETE FROM settings WHERE boutique_id = ?', [boutiqueId]);
-    
+
     // 4. Finally, delete the boutique itself
     await connection.query('DELETE FROM boutiques WHERE id = ?', [boutiqueId]);
-    
+
     await connection.commit();
     res.json({ success: true });
   } catch (error) {
@@ -1866,13 +1866,13 @@ app.get('/api/superadmin/statistics', superAdminMiddleware, async (req, res) => 
     const [countBoutiques] = await pool.query('SELECT COUNT(*) AS total FROM boutiques');
     const [countActive] = await pool.query("SELECT COUNT(*) AS total FROM boutiques WHERE statut = 'actif'");
     const [countInactive] = await pool.query("SELECT COUNT(*) AS total FROM boutiques WHERE statut = 'inactif'");
-    
+
     // CA = payments received from boutiques
     const [sumRevenue] = await pool.query('SELECT COALESCE(SUM(montant), 0) AS total FROM boutique_payments');
     // Dépenses = personal admin expenses
     const [sumExpenses] = await pool.query('SELECT COALESCE(SUM(montant), 0) AS total FROM admin_depenses');
     const [sumEpargnes] = await pool.query('SELECT COALESCE(SUM(montant), 0) AS total FROM admin_epargnes');
-    
+
     // Revenue per boutique from boutique_payments
     const [boutiqueRevenues] = await pool.query(`
       SELECT b.nom, b.montant_mensuel, COALESCE(SUM(bp.montant), 0) AS ca,
@@ -1939,7 +1939,7 @@ const PORT = process.env.SPACE_ID ? 7860 : (process.env.PORT || 3001);
 if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
   app.listen(PORT, async () => {
     console.log(`🚀 EasyFac API Server is running on port ${PORT}`);
-    
+
     // Seed Database on startup automatically
     try {
       // Safely create table epargnes if it doesn't exist
@@ -1993,19 +1993,19 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
       try {
         await pool.query('ALTER TABLE users ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
         console.log('Column "telephone" added to "users" table.');
-      } catch (e) {}
+      } catch (e) { }
       try {
         await pool.query('ALTER TABLE users ADD COLUMN active TINYINT DEFAULT 1');
         console.log('Column "active" added to "users" table.');
-      } catch (e) {}
+      } catch (e) { }
       try {
         await pool.query('ALTER TABLE factures ADD COLUMN rappelAutomatiqueSent TINYINT DEFAULT 0');
         console.log('Column "rappelAutomatiqueSent" added to "factures" table.');
-      } catch (e) {}
+      } catch (e) { }
       try {
         await pool.query('ALTER TABLE remboursements ADD COLUMN montantDuRemboursement DECIMAL(15,2) DEFAULT 0');
         console.log('Column "montantDuRemboursement" added to "remboursements" table.');
-      } catch (e) {}
+      } catch (e) { }
 
       // --- SAAS SCHEMAS & MIGRATIONS ---
       try {
@@ -2047,8 +2047,8 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
         // Add montant_mensuel column to boutiques if not exists
         try {
           await pool.query('ALTER TABLE boutiques ADD COLUMN montant_mensuel DECIMAL(15,2) DEFAULT NULL');
-        } catch(e) {}
-      } catch(e) { console.error('Tables creation error:', e.message); }
+        } catch (e) { }
+      } catch (e) { console.error('Tables creation error:', e.message); }
       // --- SAAS SCHEMAS & MIGRATIONS (CORE) ---
       try {
         // 1. Boutiques table
@@ -2064,10 +2064,10 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
         `);
         try {
           await pool.query('ALTER TABLE boutiques ADD COLUMN telephone VARCHAR(100) DEFAULT NULL');
-        } catch (e) {}
+        } catch (e) { }
         try {
           await pool.query('ALTER TABLE boutiques ADD COLUMN adresse VARCHAR(255) DEFAULT NULL');
-        } catch (e) {}
+        } catch (e) { }
         console.log('SaaS: Table "boutiques" verified with contact columns.');
 
         // 2. Insert initial boutique fac-soil
@@ -2154,7 +2154,7 @@ if (process.env.VERCEL !== '1' && !process.env.VERCEL) {
       };
       await seedUser('Faruck', 'Employé', 'faruck-employe@gmail.com', 'Passer123', 'employee', empPermissions);
       console.log('✅ Database startup seeding completed successfully!');
-      
+
       // Initialize dynamic cron scheduler at startup
       await initReminderCron();
     } catch (err) {

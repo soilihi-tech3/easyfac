@@ -1,6 +1,6 @@
 // EasyFac - Data Store (API based with Offline Sync Engine)
 
-export const API_URL = (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))
+export const API_URL = (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
   ? '' 
   : (process.env.REACT_APP_API_URL || 'http://localhost:3001');
 
